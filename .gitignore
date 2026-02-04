@@ -1,3 +1,7 @@
 node_modules
 package-lock.json
 .env
+firebase-debug.log
+firebase.json
+firestore-debug.log
+.firebaserc
