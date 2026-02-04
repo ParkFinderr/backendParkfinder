@@ -1,29 +1,18 @@
-// src/models/userModel.js
 const Joi = require('joi');
 
+// --- database skema ---
 const userSchema = Joi.object({
-  // email: (string)
+  userId: Joi.string().required(), 
   email: Joi.string().email().required(),
-  
-  // name: (string)
   name: Joi.string().required(),
-  
-  // phoneNumber: (string)
+  password: Joi.string().required(),
   phoneNumber: Joi.string().pattern(/^[0-9]+$/).min(10).max(15).required(),
-  
-  // role: (string) - 'user' atau 'admin'
   role: Joi.string().valid('user', 'admin').default('user'),
-  
-  // createdAt: (timestamp)
   createdAt: Joi.date().default(Date.now),
-  
-  // fcmToken: (string) – untuk notifikasi
   fcmToken: Joi.string().allow(null, '').optional(),
-  
-  // activeTicketId (string | null): tiket yang sedang dipakai
   activeTicketId: Joi.string().allow(null).default(null),
   
-  // vehicles: (array) - list kendaraan user
+  // array kendaraan
   vehicles: Joi.array().items(
     Joi.object({
       plateNumber: Joi.string().uppercase().required(),
@@ -32,8 +21,6 @@ const userSchema = Joi.object({
   ).default([])
 });
 
-const validateUser = (data) => {
-  return userSchema.validate(data, { abortEarly: false });
-};
+const validateUser = (data) => userSchema.validate(data, { abortEarly: false });
 
-module.exports = { validateUser };
+module.exports = { validateUser, validateRegister, validateLogin };
