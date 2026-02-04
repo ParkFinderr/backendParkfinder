@@ -2,10 +2,10 @@
   "name": "backendparkfinder",
   "version": "1.0.0",
   "main": "index.js",
- "scripts": {
-  "start": "node src/server.js",
-  "dev": "nodemon src/server.js"
-},
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
   "author": "ivalhad",
   "license": "ISC",
   "description": "",
@@ -15,6 +15,7 @@
     "express": "^5.2.1",
     "firebase-admin": "^13.6.0",
     "helmet": "^8.1.0",
+    "joi": "^18.0.2",
     "morgan": "^1.10.1"
   },
   "devDependencies": {
