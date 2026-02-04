@@ -1,25 +1,32 @@
+// src/server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+// Import Routes
+const authRoutes = require('./routes/authRoutes');
 
-// Middleware
+const app = express();
+const PORT = process.env.PORT;
+
+// middleware
 app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-// Route Check (Health Check)
+// routes
+app.use('/auth', authRoutes);
+
+// Root Endpoint
 app.get('/', (req, res) => {
-  res.status(200).json({
-    message: 'ParkFinder Backend API is Running...',
-    timestamp: new Date()
+  res.status(200).json({ 
+    message: 'ParkFinder Backend API Running...', 
+    serverTime: new Date() 
   });
 });
 
-// Jalankan Server
+
 app.listen(PORT, () => {
   console.log(`[SERVER] ParkFinder berjalan di http://localhost:${PORT}`);
 });

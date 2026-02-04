@@ -1,6 +1,6 @@
 const Joi = require('joi');
 
-// --- database skema ---
+// database skema
 const userSchema = Joi.object({
   userId: Joi.string().required(), 
   email: Joi.string().email().required(),
@@ -21,6 +21,20 @@ const userSchema = Joi.object({
   ).default([])
 });
 
-const validateUser = (data) => userSchema.validate(data, { abortEarly: false });
 
-module.exports = { validateUser, validateRegister, validateLogin };
+// register
+const registerSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().min(6).required(),
+  name: Joi.string().required(),
+  phoneNumber: Joi.string().pattern(/^[0-9]+$/).min(10).max(15).required(),
+  defaultLicensePlate: Joi.string().uppercase().required(),
+  vehicleType: Joi.string().valid('mobil', 'motor').default('mobil'),
+  fcmToken: Joi.string().optional()
+});
+
+
+const validateUser = (data) => userSchema.validate(data, { abortEarly: false });
+const validateRegister = (data) => registerSchema.validate(data, { abortEarly: false });
+
+module.exports = { validateUser, validateRegister };
