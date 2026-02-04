@@ -72,3 +72,51 @@ exports.register = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+//login
+exports.login = async (req, res) => {
+  try {
+    // validasi input user
+    const { error } = validateLogin(req.body);
+    if (error) return res.status(400).json({ message: error.details[0].message });
+
+    const { email, password, fcmToken } = req.body;
+
+    // cari email user
+    const userQuery = await db.collection('users').where('email', '==', email).limit(1).get();
+    if (userQuery.empty) {
+      return res.status(400).json({ message: 'Email atau Password salah.' });
+    }
+
+    const userDoc = userQuery.docs[0];
+    const userData = userDoc.data();
+
+    // cek password
+    const isMatch = await bcrypt.compare(password, userData.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Email atau Password salah.' });
+    }
+
+    // update fcm token
+    if (fcmToken) {
+      await userDoc.ref.update({ fcmToken });
+    }
+
+    // genereate jwt
+    const token = signToken(userData);
+    res.status(200).json({
+      success: true,
+      message: 'Login Berhasil',
+      token,
+      data: { 
+        userId: userData.userId, 
+        email: userData.email, 
+        name: userData.name, 
+        role: userData.role 
+      }
+    });
+
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

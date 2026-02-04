@@ -1,10 +1,9 @@
-// src/server.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 
-// Import Routes
+// import Routes
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
@@ -25,7 +24,6 @@ app.get('/', (req, res) => {
     serverTime: new Date() 
   });
 });
-
 
 app.listen(PORT, () => {
   console.log(`[SERVER] ParkFinder berjalan di http://localhost:${PORT}`);

@@ -33,8 +33,15 @@ const registerSchema = Joi.object({
   fcmToken: Joi.string().optional()
 });
 
+// login
+const loginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().required(),
+  fcmToken: Joi.string().optional()
+});
 
 const validateUser = (data) => userSchema.validate(data, { abortEarly: false });
 const validateRegister = (data) => registerSchema.validate(data, { abortEarly: false });
+const validateLogin = (data) => loginSchema.validate(data, { abortEarly: false });
 
-module.exports = { validateUser, validateRegister };
+module.exports = { validateUser, validateRegister, validateLogin };
