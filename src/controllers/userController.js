@@ -18,6 +18,7 @@ const getProfile = async (req, res) => {
     // Hapus data sensitif
     delete userData.password;
     delete userData.fcmToken;
+    delete userData.createdAt;
 
     return sendSuccess(res, 200, 'Data profil berhasil diambil.', userData);
   } catch (error) {
