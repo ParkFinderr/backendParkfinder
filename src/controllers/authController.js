@@ -1,14 +1,14 @@
-// src/controllers/authController.js
 const db = require('../config/firebase');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validateRegister, validateLogin } = require('../models/userModel');
+const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
 
-// membuat token jwt
+// jwt token
 const signToken = (user) => {
   return jwt.sign(
     { 
-      userId: user.userId,
+      userId: user.userId, 
       email: user.email, 
       role: user.role 
     },
@@ -18,97 +18,95 @@ const signToken = (user) => {
 };
 
 // register
-exports.register = async (req, res) => {
+const register = async (req, res) => {
   try {
-    // validasi input
+
     const { error } = validateRegister(req.body);
-    if (error) return res.status(400).json({ message: error.details[0].message });
+    if (error) {
+      return sendError(res, 400, error.details[0].message);
+    }
 
     const { email, password, name, phoneNumber, defaultLicensePlate, vehicleType, fcmToken } = req.body;
 
-    // cek email 
     const userQuery = await db.collection('users').where('email', '==', email).limit(1).get();
     if (!userQuery.empty) {
-      return res.status(400).json({ message: 'Email sudah terdaftar.' });
+      return sendError(res, 400, 'Email sudah terdaftar. Silakan gunakan email lain atau login.');
     }
 
-    // hash passwrord
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
-    // membuat userId baru
+    
     const newUserRef = db.collection('users').doc();
     const newUserId = newUserRef.id;
 
-    // menyimpan ke database
     const userData = {
       userId: newUserId,
       email,
       name,
       password: hashedPassword,
       phoneNumber,
-      role: 'user', 
+      role: 'user',
       createdAt: new Date(),
       fcmToken: fcmToken || null,
       activeTicketId: null,
-      vehicles: [{
-        plateNumber: defaultLicensePlate,
-        vehicleType: vehicleType || 'mobil'
+      vehicles: [{ 
+        plateNumber: defaultLicensePlate, 
+        vehicleType: vehicleType || 'mobil' 
       }]
     };
 
     await newUserRef.set(userData);
 
-    // mengirim response
     const token = signToken(userData);
-    res.status(201).json({
-      success: true,
-      message: 'Registrasi Berhasil',
+
+    return sendSuccess(res, 201, 'Registrasi berhasil! Selamat datang.', {
       token,
-      data: { userId: newUserId, email, name, role: 'user' }
+      user: { 
+        userId: newUserId, 
+        email, 
+        name, 
+        role: 'user' 
+      }
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendServerError(res, error);
   }
 };
 
-//login
-exports.login = async (req, res) => {
+// login
+const login = async (req, res) => {
   try {
-    // validasi input user
+
     const { error } = validateLogin(req.body);
-    if (error) return res.status(400).json({ message: error.details[0].message });
+    if (error) {
+      return sendError(res, 400, error.details[0].message);
+    }
 
     const { email, password, fcmToken } = req.body;
 
-    // cari email user
     const userQuery = await db.collection('users').where('email', '==', email).limit(1).get();
     if (userQuery.empty) {
-      return res.status(400).json({ message: 'Email atau Password salah.' });
+      return sendError(res, 400, 'Email atau Password salah.');
     }
 
     const userDoc = userQuery.docs[0];
     const userData = userDoc.data();
 
-    // cek password
     const isMatch = await bcrypt.compare(password, userData.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Email atau Password salah.' });
+      return sendError(res, 400, 'Email atau Password salah.');
     }
 
-    // update fcm token
     if (fcmToken) {
       await userDoc.ref.update({ fcmToken });
     }
 
-    // genereate jwt
     const token = signToken(userData);
-    res.status(200).json({
-      success: true,
-      message: 'Login Berhasil',
+
+    return sendSuccess(res, 200, 'Login berhasil.', {
       token,
-      data: { 
+      user: { 
         userId: userData.userId, 
         email: userData.email, 
         name: userData.name, 
@@ -117,19 +115,22 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendServerError(res, error);
   }
 };
 
 // logout
-exports.logout = async (req, res) => {
+const logout = async (req, res) => {
   try {
-    const { userId } = req.user; 
+    const { userId } = req.user;
     
     await db.collection('users').doc(userId).update({ fcmToken: null });
+    
+    return sendSuccess(res, 200, 'Logout berhasil.');
 
-    res.status(200).json({ success: true, message: 'Logout berhasil' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return sendServerError(res, error);
   }
 };
+
+module.exports = { register, login, logout };
