@@ -18,4 +18,7 @@ router.delete('/users/vehicles/:id', verifyToken, userController.deleteVehicle);
 // admin mengambil data user
 router.get('/admin/users', verifyToken, verifyAdmin, userController.getAllUsers);
 
+// admin hapus user
+router.delete('/admin/users/:id', verifyToken, verifyAdmin, userController.deleteUser);
+
 module.exports = router;

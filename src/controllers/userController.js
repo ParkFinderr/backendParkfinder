@@ -138,4 +138,29 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-module.exports = { getProfile, updateProfile, addVehicle, deleteVehicle, getAllUsers };
+const deleteUser = async (req, res) => {
+  try {
+
+    const targetUserId = req.params.id;
+    const currentAdminId = req.user.userId;
+
+    if (targetUserId === currentAdminId) {
+      return sendError(res, 400, 'Anda tidak dapat menghapus akun Admin sendiri.');
+    }
+
+    const targetUserRef = db.collection('users').doc(targetUserId);
+    const doc = await targetUserRef.get();
+
+    if (!doc.exists) {
+      return sendError(res, 404, 'User tidak ditemukan.');
+    }
+
+    await targetUserRef.delete();
+
+    return sendSuccess(res, 200, 'Pengguna berhasil dihapus dari sistem.');
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { getProfile, updateProfile, addVehicle, deleteVehicle, getAllUsers, deleteUser };
