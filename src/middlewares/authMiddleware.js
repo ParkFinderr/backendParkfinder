@@ -11,7 +11,7 @@ const verifyToken = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const secret = process.env.JWT_SECRET || 'rahasia_dev_123';
+    const secret = process.env.JWT_SECRET 
     const decoded = jwt.verify(token, secret);
     req.user = decoded;
     next();
