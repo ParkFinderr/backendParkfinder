@@ -5,6 +5,7 @@ const morgan = require('morgan');
 
 // import Routes
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -16,6 +17,7 @@ app.use(morgan('dev'));
 
 // routes
 app.use('/auth', authRoutes);
+app.use('/', userRoutes);
 
 // Root Endpoint
 app.get('/', (req, res) => {
