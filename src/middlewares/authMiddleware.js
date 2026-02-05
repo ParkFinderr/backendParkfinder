@@ -1,3 +1,4 @@
+// src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const { sendError } = require('../utils/responseHelper');
 
@@ -11,12 +12,11 @@ const verifyToken = (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
-    const secret = process.env.JWT_SECRET 
+    const secret = process.env.JWT_SECRET || 'rahasia_dev_123';
     const decoded = jwt.verify(token, secret);
     req.user = decoded;
     next();
   } catch (error) {
-
     if (error.name === 'TokenExpiredError') {
       return sendError(res, 403, 'Sesi Anda telah berakhir (Token Expired). Silakan login kembali.');
     }
@@ -24,4 +24,12 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-module.exports = verifyToken;
+// admin
+const verifyAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin') {
+    return sendError(res, 403, 'Akses ditolak. Halaman ini khusus Admin.');
+  }
+  next();
+};
+
+module.exports = { verifyToken, verifyAdmin };
