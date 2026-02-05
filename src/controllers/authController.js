@@ -124,7 +124,10 @@ const logout = async (req, res) => {
   try {
     const { userId } = req.user;
     
-    await db.collection('users').doc(userId).update({ fcmToken: null });
+    await db.collection('users').doc(userId).update({ 
+      fcmToken: null,
+      lastLogoutAt: Date.now()
+    });
     
     return sendSuccess(res, 200, 'Logout berhasil.');
 

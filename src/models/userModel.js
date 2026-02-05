@@ -36,6 +36,8 @@ const userSchema = Joi.object({
   createdAt: Joi.date().default(Date.now),
   fcmToken: Joi.string().allow(null, '').optional(),
   activeTicketId: Joi.string().allow(null).default(null),
+
+  lastLogoutAt: Joi.date().allow(null).optional(),
   
   vehicles: Joi.array().items(
     Joi.object({
