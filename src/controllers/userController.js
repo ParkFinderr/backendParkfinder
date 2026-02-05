@@ -114,4 +114,28 @@ const deleteVehicle = async (req, res) => {
   }
 };
 
-module.exports = { getProfile, updateProfile, addVehicle, deleteVehicle };
+//admin mengambil data user
+const getAllUsers = async (req, res) => {
+  try {
+    const usersSnapshot = await db.collection('users').get();
+    
+    const allUsers = usersSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        userId: data.userId,
+        email: data.email,
+        name: data.name,
+        role: data.role,
+        phoneNumber: data.phoneNumber,
+        vehicles: data.vehicles,
+        activeTicketId: data.activeTicketId
+      };
+    });
+
+    return sendSuccess(res, 200, 'Data seluruh pengguna berhasil diambil.', allUsers);
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { getProfile, updateProfile, addVehicle, deleteVehicle, getAllUsers };

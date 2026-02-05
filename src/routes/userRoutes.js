@@ -15,4 +15,7 @@ router.post('/users/vehicles', verifyToken, userController.addVehicle);
 // menghapus kendaraaan user
 router.delete('/users/vehicles/:id', verifyToken, userController.deleteVehicle);
 
+// admin mengambil data user
+router.get('/admin/users', verifyToken, verifyAdmin, userController.getAllUsers);
+
 module.exports = router;
