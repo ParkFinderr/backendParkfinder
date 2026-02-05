@@ -117,8 +117,23 @@ const deleteVehicle = async (req, res) => {
 //admin mengambil data user
 const getAllUsers = async (req, res) => {
   try {
-    const usersSnapshot = await db.collection('users').get();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    let baseQuery = db.collection('users').where('role', '==', 'user');
+
+    const countSnapshot = await baseQuery.count().get();
+    const totalData = countSnapshot.data().count;
+    const totalPages = Math.ceil(totalData / limit);
+
+    const usersSnapshot = await baseQuery
+      .orderBy('createdAt', 'desc') 
+      .limit(limit)
+      .offset(offset)
+      .get();
     
+    // 5. Mapping Data (Filter sensitif tetap jalan)
     const allUsers = usersSnapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -128,12 +143,26 @@ const getAllUsers = async (req, res) => {
         role: data.role,
         phoneNumber: data.phoneNumber,
         vehicles: data.vehicles,
-        activeTicketId: data.activeTicketId
+        activeTicketId: data.activeTicketId,
+        registeredAt: data.createdAt 
       };
     });
 
-    return sendSuccess(res, 200, 'Data seluruh pengguna berhasil diambil.', allUsers);
+    return sendSuccess(res, 200, 'Data pengguna berhasil diambil.', {
+      users: allUsers,
+      pagination: {
+        currentPage: page,
+        itemsPerPage: limit,
+        totalItems: totalData,
+        totalPages: totalPages
+      }
+    });
+
   } catch (error) {
+    if (error.code === 9) { 
+      console.error("INDEX ERROR: Query membutuhkan index komposit di Firestore Console.");
+      return sendError(res, 500, 'Server Error: Database Index belum dibuat.');
+    }
     return sendServerError(res, error);
   }
 };
