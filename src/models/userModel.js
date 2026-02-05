@@ -63,8 +63,15 @@ const loginSchema = Joi.object({
   fcmToken: commonRules.fcmToken
 });
 
+// update data user
+const updateProfileSchema = Joi.object({
+  name: Joi.string().optional().messages(messageHelper('Nama Lengkap')),
+  phoneNumber: Joi.string().pattern(/^[0-9]+$/).min(10).max(15).optional().messages(messageHelper('Nomor Telepon'))
+});
+
 const validateUser = (data) => userSchema.validate(data, { abortEarly: false });
 const validateRegister = (data) => registerSchema.validate(data, { abortEarly: false });
 const validateLogin = (data) => loginSchema.validate(data, { abortEarly: false });
+const validateUpdateProfile = (data) => updateProfileSchema.validate(data, { abortEarly: false });
 
-module.exports = { validateUser, validateRegister, validateLogin };
+module.exports = { validateUser, validateRegister, validateLogin, validateUpdateProfile };

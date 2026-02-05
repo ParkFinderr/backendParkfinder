@@ -26,5 +26,31 @@ const getProfile = async (req, res) => {
   }
 };
 
+//update profile user
+const updateProfile = async (req, res) => {
+  try {
+    const { userId } = req.user;
 
-module.exports = { getProfile };
+    const { error } = validateUpdateProfile(req.body);
+    if (error) return sendError(res, 400, error.details[0].message);
+
+    const { name, phoneNumber } = req.body;
+    const updateData = {};
+    
+    if (name) updateData.name = name;
+    if (phoneNumber) updateData.phoneNumber = phoneNumber;
+
+    if (Object.keys(updateData).length === 0) {
+      return sendError(res, 400, 'Tidak ada data yang diubah.');
+    }
+
+    await db.collection('users').doc(userId).update(updateData);
+
+    return sendSuccess(res, 200, 'Profil berhasil diperbarui.', { userId, ...updateData });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+
+module.exports = { getProfile, updateProfile };
