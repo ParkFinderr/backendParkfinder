@@ -120,3 +120,16 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// logout
+exports.logout = async (req, res) => {
+  try {
+    const { userId } = req.user; 
+    
+    await db.collection('users').doc(userId).update({ fcmToken: null });
+
+    res.status(200).json({ success: true, message: 'Logout berhasil' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
