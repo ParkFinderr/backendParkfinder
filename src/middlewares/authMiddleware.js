@@ -1,27 +1,26 @@
-// src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
+const { sendError } = require('../utils/responseHelper');
 
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
-  // cek autorisasi pada header
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Akses ditolak. Token tidak ditemukan.' });
+    return sendError(res, 401, 'Akses ditolak. Token autentikasi tidak ditemukan.');
   }
 
   const token = authHeader.split(' ')[1];
 
   try {
-    // verfifikasi token
-    const secret = process.env.JWT_SECRET
+    const secret = process.env.JWT_SECRET || 'rahasia_dev_123';
     const decoded = jwt.verify(token, secret);
-    
-    // simpan data user  ke request
-    req.user = decoded; 
-    
+    req.user = decoded;
     next();
   } catch (error) {
-    return res.status(403).json({ message: 'Token tidak valid atau kadaluwarsa.' });
+
+    if (error.name === 'TokenExpiredError') {
+      return sendError(res, 403, 'Sesi Anda telah berakhir (Token Expired). Silakan login kembali.');
+    }
+    return sendError(res, 403, 'Token tidak valid. Akses ditolak.');
   }
 };
 
