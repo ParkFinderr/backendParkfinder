@@ -69,9 +69,16 @@ const updateProfileSchema = Joi.object({
   phoneNumber: Joi.string().pattern(/^[0-9]+$/).min(10).max(15).optional().messages(messageHelper('Nomor Telepon'))
 });
 
+// tambah kendaraan user
+const addVehicleSchema = Joi.object({
+  plateNumber: Joi.string().uppercase().required().messages(messageHelper('Plat Nomor')),
+  vehicleType: Joi.string().valid('mobil', 'motor').required().messages(messageHelper('Jenis Kendaraan'))
+});
+
 const validateUser = (data) => userSchema.validate(data, { abortEarly: false });
 const validateRegister = (data) => registerSchema.validate(data, { abortEarly: false });
 const validateLogin = (data) => loginSchema.validate(data, { abortEarly: false });
 const validateUpdateProfile = (data) => updateProfileSchema.validate(data, { abortEarly: false });
+const validateAddVehicle = (data) => addVehicleSchema.validate(data, { abortEarly: false });
 
-module.exports = { validateUser, validateRegister, validateLogin, validateUpdateProfile };
+module.exports = { validateUser, validateRegister, validateLogin, validateUpdateProfile, validateAddVehicle };

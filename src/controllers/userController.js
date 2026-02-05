@@ -52,5 +52,35 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// menambah kendaraan user
+const addVehicle = async (req, res) => {
+  try {
+    const { userId } = req.user;
 
-module.exports = { getProfile, updateProfile };
+    const { error } = validateAddVehicle(req.body);
+    if (error) return sendError(res, 400, error.details[0].message);
+
+    const { plateNumber, vehicleType } = req.body;
+
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    const userData = userDoc.data();
+
+    const existingVehicle = userData.vehicles.find(v => v.plateNumber === plateNumber);
+    if (existingVehicle) {
+      return sendError(res, 400, `Kendaraan dengan plat nomor ${plateNumber} sudah terdaftar di akun Anda.`);
+    }
+
+    const newVehicle = { plateNumber, vehicleType };
+
+    await userRef.update({
+      vehicles: admin.firestore.FieldValue.arrayUnion(newVehicle)
+    });
+
+    return sendSuccess(res, 201, 'Kendaraan berhasil ditambahkan.', newVehicle);
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { getProfile, updateProfile, addVehicle };

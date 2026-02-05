@@ -9,5 +9,8 @@ router.get('/users/profile', verifyToken, userController.getProfile);
 //update profile user
 router.put('/users/profile', verifyToken, userController.updateProfile);
 
+// menambah kendaraan user
+router.post('/users/vehicles', verifyToken, userController.addVehicle);
+
 
 module.exports = router;
