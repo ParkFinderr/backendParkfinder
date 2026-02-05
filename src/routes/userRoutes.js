@@ -12,5 +12,7 @@ router.put('/users/profile', verifyToken, userController.updateProfile);
 // menambah kendaraan user
 router.post('/users/vehicles', verifyToken, userController.addVehicle);
 
+// menghapus kendaraaan user
+router.delete('/users/vehicles/:id', verifyToken, userController.deleteVehicle);
 
 module.exports = router;

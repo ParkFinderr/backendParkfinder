@@ -83,4 +83,35 @@ const addVehicle = async (req, res) => {
   }
 };
 
-module.exports = { getProfile, updateProfile, addVehicle };
+// hapus kendaraan user
+const deleteVehicle = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    
+    const targetPlateNumber = req.params.id; 
+
+    const userRef = db.collection('users').doc(userId);
+    const userDoc = await userRef.get();
+    const userData = userDoc.data();
+
+    const targetVehicle = userData.vehicles.find(v => v.plateNumber === targetPlateNumber);
+
+    if (!targetVehicle) {
+      return sendError(res, 404, `Kendaraan dengan ID (Plat) ${targetPlateNumber} tidak ditemukan.`);
+    }
+
+    if (userData.vehicles.length <= 1) {
+      return sendError(res, 400, 'Anda tidak dapat menghapus kendaraan utama (satu-satunya).');
+    }
+
+    await userRef.update({
+      vehicles: admin.firestore.FieldValue.arrayRemove(targetVehicle)
+    });
+
+    return sendSuccess(res, 200, `Kendaraan dengan Plat ${targetPlateNumber} berhasil dihapus.`);
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { getProfile, updateProfile, addVehicle, deleteVehicle };
