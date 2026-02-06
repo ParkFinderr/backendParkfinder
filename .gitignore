@@ -5,3 +5,4 @@ firebase-debug.log
 firebase.json
 firestore-debug.log
 .firebaserc
+storage.rules
