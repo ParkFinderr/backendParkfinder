@@ -6,4 +6,7 @@ const { verifyToken, verifyAdmin } = require('../middlewares/authMiddleware');
 // membuat tiket
 router.post('/gate/generateTicket', verifyToken, verifyAdmin, gateController.generateTicket);
 
+// verifikasi tiket
+router.post('/access/verify', gateController.verifyTicket);
+
 module.exports = router;
