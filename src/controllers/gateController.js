@@ -113,4 +113,4 @@ const verifyTicket = async (req, res) => {
   }
 };
 
-module.exports = { generateTicket}
+module.exports = { generateTicket, verifyTicket}
