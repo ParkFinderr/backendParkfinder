@@ -19,4 +19,7 @@ router.get('/:id/slots', slotController.getSlotsByArea);
 // update slot 
 router.put('/slots/:id', verifyToken, verifyAdmin, slotController.updateSlot);
 
+//delete slot
+router.delete('/slots/:id', verifyToken, verifyAdmin, slotController.deleteSlot);
+
 module.exports = router;

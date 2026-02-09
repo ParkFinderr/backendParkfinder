@@ -128,4 +128,40 @@ const updateSlot = async (req, res) => {
   }
 };
 
-module.exports = { addSlot, getSlotsByArea, updateSlot };
+// hapus slot parkir
+const deleteSlot = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const slotRef = db.collection('slots').doc(id);
+
+    await db.runTransaction(async (t) => {
+      const doc = await t.get(slotRef);
+      if (!doc.exists) {
+        throw new Error('SlotNotFound');
+      }
+
+      const slotData = doc.data();
+
+      if (slotData.appStatus === 'occupied' || slotData.appStatus === 'booked') {
+        throw new Error('SlotBusy');
+      }
+
+      const areaRef = db.collection('areas').doc(slotData.areaId);
+
+      t.delete(slotRef);
+      t.update(areaRef, {
+        totalSlots: admin.firestore.FieldValue.increment(-1),
+        availableSlots: admin.firestore.FieldValue.increment(-1)
+      });
+    });
+
+    return sendSuccess(res, 200, 'Slot berhasil dihapus permanen.');
+
+  } catch (error) {
+    if (error.message === 'SlotNotFound') return sendError(res, 404, 'Slot tidak ditemukan.');
+    if (error.message === 'SlotBusy') return sendError(res, 400, 'Gagal menghapus. Slot sedang digunakan atau direservasi.');
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { addSlot, getSlotsByArea, updateSlot, deleteSlot };
