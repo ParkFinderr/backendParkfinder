@@ -1,6 +1,6 @@
 const admin = require('firebase-admin'); // Butuh ini untuk FieldValue
 const { db } = require('../config/firebase');
-const { createSlotSchema, updateSlotSchema, updateStatusSchema } = require('../models/slotModel');
+const { createSlotSchema, updateSlotSchema } = require('../models/slotModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
 
 // menambahkan slot parkir baru
@@ -92,6 +92,7 @@ const getSlotsByArea = async (req, res) => {
 const updateSlot = async (req, res) => {
   try {
     const { id } = req.params;
+    
     const { error, value } = updateSlotSchema.validate(req.body);
     if (error) return sendError(res, 400, error.details[0].message);
 
@@ -100,37 +101,31 @@ const updateSlot = async (req, res) => {
     
     if (!doc.exists) return sendError(res, 404, 'Slot tidak ditemukan.');
 
-    await slotRef.update({ ...value, lastUpdate: new Date().toISOString() });
-    
-    return sendSuccess(res, 200, 'Data slot berhasil diperbarui.');
+    if (value.sensorId && value.sensorId !== doc.data().sensorId) {
+      const sensorCheck = await db.collection('slots')
+        .where('sensorId', '==', value.sensorId)
+        .get();
+      
+      if (!sensorCheck.empty) {
+        return sendError(res, 400, 'Sensor ID sudah digunakan di slot lain.');
+      }
+    }
 
-  } catch (error) {
-    return sendServerError(res, error);
-  }
-};
-
-// update status slot
-const updateSlotStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { error, value } = updateStatusSchema.validate(req.body);
-    if (error) return sendError(res, 400, error.details[0].message);
-
-    const slotRef = db.collection('slots').doc(id);
-    const doc = await slotRef.get();
-
-    if (!doc.exists) return sendError(res, 404, 'Slot tidak ditemukan.');
-
+    // 4. Update Data
     await slotRef.update({ 
-      appStatus: value.status,
-      lastUpdate: new Date().toISOString()
+      ...value,
+      lastUpdate: new Date().toISOString() 
+    });
+    
+    return sendSuccess(res, 200, 'Data slot berhasil diperbarui.', {
+      id,
+      ...doc.data(), 
+      ...value       
     });
 
-    return sendSuccess(res, 200, `Status slot diubah menjadi ${value.status}.`);
-
   } catch (error) {
     return sendServerError(res, error);
   }
 };
 
-module.exports = { addSlot, getSlotsByArea, updateSlot, updateSlotStatus };
+module.exports = { addSlot, getSlotsByArea, updateSlot };

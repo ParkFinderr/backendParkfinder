@@ -1,37 +1,23 @@
 const Joi = require('joi');
 
-// membuat slot baru
+// skema slot parkir
 const createSlotSchema = Joi.object({
-  areaId: Joi.string().required().messages({
-    'string.empty': 'ID Area wajib diisi.'
-  }),
-  floor: Joi.number().integer().required().messages({
-    'number.base': 'Lantai harus berupa angka.'
-  }),
-  slotName: Joi.string().required().messages({
-    'string.empty': 'Nama slot (contoh: A-1) wajib diisi.'
-  }),
-  sensorId: Joi.string().required().messages({
-    'string.empty': 'ID Sensor (Hardware) wajib diisi.'
-  })
+  areaId: Joi.string().required().messages({ 'string.empty': 'ID Area wajib diisi.' }),
+  floor: Joi.number().integer().required(),
+  slotName: Joi.string().required(),
+  sensorId: Joi.string().required()
 });
 
-// update slot baru
+// updte slot parkir
 const updateSlotSchema = Joi.object({
   floor: Joi.number().integer().optional(),
   slotName: Joi.string().optional(),
-  sensorId: Joi.string().optional()
-});
-
-// update status slot
-const updateStatusSchema = Joi.object({
-  status: Joi.string().valid('available', 'maintenance').required().messages({
-    'any.only': 'Status hanya boleh: available atau maintenance.'
+  sensorId: Joi.string().optional(),
+  
+  appStatus: Joi.string().valid('available', 'maintenance', 'occupied').optional().messages({
+    'any.only': 'Status hanya boleh: available, maintenance, atau occupied.'
   })
 });
 
-module.exports = { 
-  createSlotSchema, 
-  updateSlotSchema, 
-  updateStatusSchema 
-};
+
+module.exports = { createSlotSchema, updateSlotSchema };
