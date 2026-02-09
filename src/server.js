@@ -8,6 +8,7 @@ const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const systemRoutes = require('./routes/systemRoutes');
 const areaRoutes = require('./routes/areaAndSlotRoutes');
+const gateRoutes = require('./routes/gateRoutes')
 
 const app = express();
 const PORT = process.env.PORT;
@@ -22,6 +23,7 @@ app.use('/auth', authRoutes);
 app.use('/', userRoutes);
 app.use('/system', systemRoutes);
 app.use('/areas', areaRoutes);
+app.use('/', gateRoutes);
 
 // Root Endpoint
 app.get('/', (req, res) => {
