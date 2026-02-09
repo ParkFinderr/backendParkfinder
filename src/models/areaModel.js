@@ -13,7 +13,6 @@ const createAreaSchema = Joi.object({
     'number.base': 'Jumlah lantai harus berupa angka.',
     'number.min': 'Minimal harus ada 1 lantai.'
   })
-  // totalSlots & availableSlots tidak diinput manual tapi dimulai dari 0 dan bertambah otomatis saat Slot dibuat
 });
 
 // update area

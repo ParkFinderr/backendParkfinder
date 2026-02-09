@@ -10,6 +10,9 @@ router.post('/', verifyToken, verifyAdmin, areaController.createArea);
 // mengambil area
 router.get('/', areaController.getAllAreas);
 
+// update area
+router.put('/:id', verifyToken, verifyAdmin, areaController.updateArea);
+
 // hapus area
 router.delete('/:id', verifyToken, verifyAdmin, areaController.deleteArea);
 

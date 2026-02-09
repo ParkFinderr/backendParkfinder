@@ -81,4 +81,33 @@ const deleteArea = async (req, res) => {
   }
 };
 
-module.exports = { createArea, getAllAreas, deleteArea };
+// update area
+const updateArea = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error, value } = updateAreaSchema.validate(req.body);
+    if (error) {
+      return sendError(res, 400, error.details[0].message);
+    }
+
+    const areaRef = db.collection('areas').doc(id);
+    const doc = await areaRef.get();
+
+    if (!doc.exists) {
+      return sendError(res, 404, 'Area parkir tidak ditemukan.');
+    }
+
+    await areaRef.update({
+      ...value,
+      updatedAt: new Date().toISOString()
+    });
+
+    return sendSuccess(res, 200, 'Informasi area parkir berhasil diperbarui.');
+
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createArea, getAllAreas, deleteArea, updateArea };
