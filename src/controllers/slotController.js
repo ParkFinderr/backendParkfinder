@@ -88,7 +88,7 @@ const getSlotsByArea = async (req, res) => {
   }
 };
 
-// update slo 
+// update slot
 const updateSlot = async (req, res) => {
   try {
     const { id } = req.params;
@@ -109,4 +109,28 @@ const updateSlot = async (req, res) => {
   }
 };
 
-module.exports = { addSlot, getSlotsByArea, updateSlot };
+// update status slot
+const updateSlotStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error, value } = updateStatusSchema.validate(req.body);
+    if (error) return sendError(res, 400, error.details[0].message);
+
+    const slotRef = db.collection('slots').doc(id);
+    const doc = await slotRef.get();
+
+    if (!doc.exists) return sendError(res, 404, 'Slot tidak ditemukan.');
+
+    await slotRef.update({ 
+      appStatus: value.status,
+      lastUpdate: new Date().toISOString()
+    });
+
+    return sendSuccess(res, 200, `Status slot diubah menjadi ${value.status}.`);
+
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { addSlot, getSlotsByArea, updateSlot, updateSlotStatus };

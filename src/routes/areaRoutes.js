@@ -19,4 +19,7 @@ router.get('/:id/slots', slotController.getSlotsByArea);
 // update slot 
 router.put('/slots/:id', verifyToken, verifyAdmin, slotController.updateSlot);
 
+// update slot status
+router.patch('/slots/:id/status', verifyToken, verifyAdmin, slotController.updateSlotStatus);
+
 module.exports = router;
