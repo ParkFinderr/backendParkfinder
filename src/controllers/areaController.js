@@ -52,6 +52,25 @@ const getAllAreas = async (req, res) => {
   }
 };
 
+// mengambil area dengan id
+const getAreaById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('areas').doc(id).get();
+
+    if (!doc.exists) {
+      return sendError(res, 404, 'Area parkir tidak ditemukan.');
+    }
+
+    return sendSuccess(res, 200, 'Detail area berhasil diambil.', {
+      id: doc.id,
+      ...doc.data()
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
 // hapus area
 const deleteArea = async (req, res) => {
   try {
@@ -110,4 +129,4 @@ const updateArea = async (req, res) => {
   }
 };
 
-module.exports = { createArea, getAllAreas, deleteArea, updateArea };
+module.exports = { createArea, getAllAreas, deleteArea, updateArea, getAreaById };

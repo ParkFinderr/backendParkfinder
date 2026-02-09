@@ -10,11 +10,16 @@ router.post('/', verifyToken, verifyAdmin, areaController.createArea);
 // mengambil area
 router.get('/', areaController.getAllAreas);
 
+// mengambil area dengan id
+router.get('/:id', areaController.getAreaById);
+
 // update area
 router.put('/:id', verifyToken, verifyAdmin, areaController.updateArea);
 
 // hapus area
 router.delete('/:id', verifyToken, verifyAdmin, areaController.deleteArea);
+
+
 
 // menambah slot
 router.post('/slots', verifyToken, verifyAdmin, slotController.addSlot);
