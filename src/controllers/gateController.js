@@ -74,8 +74,8 @@ const verifyTicket = async (req, res) => {
     const ticketData = ticketDoc.data();
 
     if (ticketData.status !== 'active') {
-      if (ticketData.status === 'claimed') return sendError(res, 400, 'Tiket ini sudah digunakan (claimed).');
-      if (ticketData.status === 'closed') return sendError(res, 400, 'Tiket ini sudah kadaluarsa (closed).');
+      if (ticketData.status === 'claimed') return sendError(res, 400, 'Tiket ini sudah digunakan.');
+      if (ticketData.status === 'closed') return sendError(res, 400, 'Tiket ini sudah kadaluarsa.');
       return sendError(res, 400, 'Status tiket tidak valid.');
     }
 
