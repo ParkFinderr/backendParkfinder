@@ -32,4 +32,24 @@ const createArea = async (req, res) => {
   }
 };
 
-module.exports = { createArea };
+// mengambil semua area parkir
+const getAllAreas = async (req, res) => {
+  try {
+    const snapshot = await db.collection('areas').get();
+    
+    if (snapshot.empty) {
+      return sendSuccess(res, 200, 'Belum ada area parkir yang terdaftar.', []);
+    }
+
+    const areas = [];
+    snapshot.forEach(doc => {
+      areas.push({ id: doc.id, ...doc.data() });
+    });
+
+    return sendSuccess(res, 200, 'Daftar area parkir berhasil diambil.', areas);
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createArea, getAllAreas };

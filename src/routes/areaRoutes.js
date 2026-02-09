@@ -6,3 +6,6 @@ const { verifyToken, verifyAdmin } = require('../middlewares/authMiddleware');
 
 // post area
 router.post('/', verifyToken, verifyAdmin, areaController.createArea);
+
+// get area
+router.get('/', areaController.getAllAreas);
