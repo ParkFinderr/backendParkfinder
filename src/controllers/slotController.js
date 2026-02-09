@@ -88,6 +88,25 @@ const getSlotsByArea = async (req, res) => {
   }
 };
 
+// mengambil slot dengan id
+const getSlotById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('slots').doc(id).get();
+
+    if (!doc.exists) {
+      return sendError(res, 404, 'Slot tidak ditemukan.');
+    }
+
+    return sendSuccess(res, 200, 'Detail slot berhasil diambil.', {
+      id: doc.id,
+      ...doc.data()
+    });
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
 // update slot
 const updateSlot = async (req, res) => {
   try {
@@ -164,4 +183,4 @@ const deleteSlot = async (req, res) => {
   }
 };
 
-module.exports = { addSlot, getSlotsByArea, updateSlot, deleteSlot };
+module.exports = { addSlot, getSlotsByArea, updateSlot, getSlotById, deleteSlot };

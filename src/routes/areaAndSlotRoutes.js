@@ -27,6 +27,9 @@ router.post('/slots', verifyToken, verifyAdmin, slotController.addSlot);
 // mengambil slot
 router.get('/:id/slots', slotController.getSlotsByArea);
 
+// mengambil slot dengan id
+router.get('/slots/:id', slotController.getSlotById);
+
 // update slot 
 router.put('/slots/:id', verifyToken, verifyAdmin, slotController.updateSlot);
 
