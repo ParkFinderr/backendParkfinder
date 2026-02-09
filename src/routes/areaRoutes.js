@@ -16,4 +16,7 @@ router.post('/slots', verifyToken, verifyAdmin, slotController.addSlot);
 // get slot
 router.get('/:id/slots', slotController.getSlotsByArea);
 
+// update slot 
+router.put('/slots/:id', verifyToken, verifyAdmin, slotController.updateSlot);
+
 module.exports = router;
