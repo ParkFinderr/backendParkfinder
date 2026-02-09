@@ -1,27 +1,26 @@
-// src/models/areaModel.js
 const Joi = require('joi');
 
-const areaSchema = Joi.object({
-  // name: (string) - nama tempat parkir
-  name: Joi.string().required().messages({
-    'any.required': 'Nama tempat parkir wajib diisi'
+// membuat area
+const createAreaSchema = Joi.object({
+  name: Joi.string().min(3).required().messages({
+    'string.empty': 'Nama area parkir wajib diisi.',
+    'string.min': 'Nama area parkir minimal 3 karakter.'
   }),
-  
-  // address: (string) - alamat lengkap
-  address: Joi.string().required(),
-  
-  // totalFloors: (number) - jumlah total lantai
-  totalFloors: Joi.number().integer().min(1).required(),
-  
-  // totalSlots: (number) - total kapasitas
-  totalSlots: Joi.number().integer().min(0).required(),
-  
-  // availableSlots: (number) - counter real time
-  availableSlots: Joi.number().integer().min(0).max(Joi.ref('totalSlots')).required()
+  address: Joi.string().required().messages({
+    'string.empty': 'Alamat wajib diisi.'
+  }),
+  totalFloors: Joi.number().integer().min(1).required().messages({
+    'number.base': 'Jumlah lantai harus berupa angka.',
+    'number.min': 'Minimal harus ada 1 lantai.'
+  })
+  // totalSlots & availableSlots tidak diinput manual tapi dimulai dari 0 dan bertambah otomatis saat Slot dibuat
 });
 
-const validateArea = (data) => {
-  return areaSchema.validate(data, { abortEarly: false });
-};
+// update area
+const updateAreaSchema = Joi.object({
+  name: Joi.string().min(3).optional(),
+  address: Joi.string().optional(),
+  totalFloors: Joi.number().integer().min(1).optional()
+});
 
-module.exports = { validateArea };
+module.exports = { createAreaSchema, updateAreaSchema };
