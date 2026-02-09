@@ -52,4 +52,33 @@ const getAllAreas = async (req, res) => {
   }
 };
 
-module.exports = { createArea, getAllAreas };
+// hapus area
+const deleteArea = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const areaRef = db.collection('areas').doc(id);
+
+    const doc = await areaRef.get();
+    if (!doc.exists) {
+      return sendError(res, 404, 'Area parkir tidak ditemukan.');
+    }
+
+    const slotsSnapshot = await db.collection('slots')
+      .where('areaId', '==', id)
+      .limit(1)
+      .get();
+
+    if (!slotsSnapshot.empty) {
+      return sendError(res, 400, 'Gagal menghapus. Area ini masih memiliki Slot Parkir. Hapus semua slot terlebih dahulu.');
+    }
+
+    await areaRef.delete();
+
+    return sendSuccess(res, 200, 'Area parkir berhasil dihapus.');
+
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createArea, getAllAreas, deleteArea };

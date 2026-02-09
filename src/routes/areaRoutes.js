@@ -4,22 +4,25 @@ const areaController = require('../controllers/areaController');
 const slotController = require('../controllers/slotController');
 const { verifyToken, verifyAdmin } = require('../middlewares/authMiddleware');
 
-// post area
+// menambah area
 router.post('/', verifyToken, verifyAdmin, areaController.createArea);
 
-// get area
+// mengambil area
 router.get('/', areaController.getAllAreas);
 
-// post slot
+// hapus area
+router.delete('/:id', verifyToken, verifyAdmin, areaController.deleteArea);
+
+// menambah slot
 router.post('/slots', verifyToken, verifyAdmin, slotController.addSlot);
 
-// get slot
+// mengambil slot
 router.get('/:id/slots', slotController.getSlotsByArea);
 
 // update slot 
 router.put('/slots/:id', verifyToken, verifyAdmin, slotController.updateSlot);
 
-//delete slot
+// hapus slot
 router.delete('/slots/:id', verifyToken, verifyAdmin, slotController.deleteSlot);
 
 module.exports = router;
