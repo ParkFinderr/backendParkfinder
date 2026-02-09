@@ -9,4 +9,7 @@ router.post('/gate/generateTicket', verifyToken, verifyAdmin, gateController.gen
 // verifikasi tiket
 router.post('/access/verify', gateController.verifyTicket);
 
+// cek status tiket
+router.get('/access/activeTicket', gateController.getActiveTicket)
+
 module.exports = router;

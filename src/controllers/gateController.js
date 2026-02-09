@@ -37,7 +37,6 @@ const generateTicket = async (req, res) => {
   }
 };
 
-
 // verifikasi tiket parkir
 const verifyTicket = async (req, res) => {
   try {
@@ -113,4 +112,60 @@ const verifyTicket = async (req, res) => {
   }
 };
 
-module.exports = { generateTicket, verifyTicket}
+// cek status tiket
+const getActiveTicket = async (req, res) => {
+  try {
+    let ticketData = null;
+    let userId = null;
+    let guestId = req.query.guestSessionId;
+
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.userId;
+      } catch (err) {
+      }
+    }
+
+    if (userId) {
+
+      const userDoc = await db.collection('users').doc(userId).get();
+      if (!userDoc.exists) return sendError(res, 404, 'User tidak ditemukan.');
+      
+      const activeTicketId = userDoc.data().activeTicketId;
+      
+      if (activeTicketId) {
+        const ticketDoc = await db.collection('tickets').doc(activeTicketId).get();
+        if (ticketDoc.exists && ticketDoc.data().status === 'claimed') {
+          ticketData = { id: ticketDoc.id, ...ticketDoc.data() };
+        }
+      }
+
+    } else if (guestId) {
+
+      const ticketQuery = await db.collection('tickets')
+        .where('claimedBy', '==', guestId)
+        .where('status', '==', 'claimed') 
+        .limit(1)
+        .get();
+
+      if (!ticketQuery.empty) {
+        const doc = ticketQuery.docs[0];
+        ticketData = { id: doc.id, ...doc.data() };
+      }
+    }
+
+    if (ticketData) {
+      return sendSuccess(res, 200, 'Tiket aktif ditemukan.', ticketData);
+    } else {
+      return sendSuccess(res, 200, 'Tidak ada tiket aktif.', null);
+    }
+
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { generateTicket, verifyTicket, getActiveTicket}
