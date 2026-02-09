@@ -13,4 +13,7 @@ router.get('/', areaController.getAllAreas);
 // post slot
 router.post('/slots', verifyToken, verifyAdmin, slotController.addSlot);
 
+// get slot
+router.get('/:id/slots', slotController.getSlotsByArea);
+
 module.exports = router;

@@ -62,4 +62,30 @@ const addSlot = async (req, res) => {
   }
 };
 
-module.exports = { addSlot };
+// mengambil semua slot parkir
+const getSlotsByArea = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const areaDoc = await db.collection('areas').doc(id).get();
+    if (!areaDoc.exists) {
+      return sendError(res, 404, 'Area parkir tidak ditemukan.');
+    }
+
+    const snapshot = await db.collection('slots')
+      .where('areaId', '==', id)
+      .orderBy('slotName', 'asc') 
+      .get();
+
+    const slots = [];
+    snapshot.forEach(doc => {
+      slots.push({ id: doc.id, ...doc.data() });
+    });
+
+    return sendSuccess(res, 200, 'Data slot berhasil diambil.', slots);
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { addSlot, getSlotsByArea };
