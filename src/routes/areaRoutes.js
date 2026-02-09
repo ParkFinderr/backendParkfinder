@@ -9,3 +9,8 @@ router.post('/', verifyToken, verifyAdmin, areaController.createArea);
 
 // get area
 router.get('/', areaController.getAllAreas);
+
+// post slot
+router.post('/slots', verifyToken, verifyAdmin, slotController.addSlot);
+
+module.exports = router;
