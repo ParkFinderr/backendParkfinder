@@ -1,7 +1,7 @@
 // src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const { sendError } = require('../utils/responseHelper');
-const db = require('../config/firebase');
+const { db }  = require('../config/firebase');
 
 // verify token
 const verifyToken = async (req, res, next) => {

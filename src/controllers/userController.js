@@ -1,4 +1,4 @@
-const db = require('../config/firebase');
+const { db }  = require('../config/firebase');
 const admin = require('firebase-admin'); 
 const { validateUpdateProfile, validateAddVehicle } = require('../models/userModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');

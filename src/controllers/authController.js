@@ -1,4 +1,4 @@
-const db = require('../config/firebase');
+const  { db } = require('../config/firebase');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { validateRegister, validateLogin } = require('../models/userModel');

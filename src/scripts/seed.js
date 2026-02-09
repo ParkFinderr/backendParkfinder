@@ -2,7 +2,7 @@
 process.env.FIRESTORE_EMULATOR_HOST = 'localhost:8080'; 
 process.env.GCLOUD_PROJECT = 'demo-parkfinder';
 
-const db = require('../config/firebase');
+const { db }  = require('../config/firebase');
 const bcrypt = require('bcryptjs');
 const { validateUser } = require('../models/userModel');
 
