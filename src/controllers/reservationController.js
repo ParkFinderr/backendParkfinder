@@ -165,16 +165,20 @@ const completeReservation = async (req, res) => {
     const { id } = req.params;
 
     await db.runTransaction(async (t) => {
+ 
       const resRef = db.collection('reservations').doc(id);
       const resDoc = await t.get(resRef);
       if (!resDoc.exists) throw new Error('ReservationNotFound');
 
       const data = resDoc.data();
-      if (data.status !== 'active') throw new Error('InvalidStatusForComplete');
+      if (data.status !== 'active') throw new Error('InvalidStatusForComplete'); 
 
       const slotRef = db.collection('slots').doc(data.slotId);
       const ticketRef = db.collection('tickets').doc(data.ticketId);
       const userRef = db.collection('users').doc(data.userId);
+
+      const slotDoc = await t.get(slotRef); 
+      if (!slotDoc.exists) throw new Error('SlotNotFound');
 
       t.update(resRef, { 
         status: 'completed', 
@@ -191,18 +195,25 @@ const completeReservation = async (req, res) => {
         linkedReservationId: null 
       });
 
-      if (!data.userId.startsWith('guest-')) {
+      if (data.userId && !data.userId.startsWith('guest-')) {
          t.update(userRef, { activeTicketId: null });
       }
 
-      const slotDoc = await t.get(slotRef);
-      publishMqttCommand(`parkfinder/control/${slotDoc.data().areaId}/${slotDoc.data().slotName}`, 'setAvailable');
+      const areaId = slotDoc.data().areaId;
+      const slotName = slotDoc.data().slotName;
+      
+      publishMqttCommand(`parkfinder/control/${areaId}/${slotName}`, 'setAvailable');
     });
 
     return sendSuccess(res, 200, 'Parkir selesai. Terima kasih!');
 
   } catch (error) {
+
     if (error.message === 'InvalidStatusForComplete') return sendError(res, 400, 'Hanya reservasi aktif yang bisa diselesaikan.');
+    if (error.message === 'ReservationNotFound') return sendError(res, 404, 'Reservasi tidak ditemukan.');
+    if (error.message === 'SlotNotFound') return sendError(res, 404, 'Data slot parkir hilang.');
+    
+    // Error umum
     return sendServerError(res, error);
   }
 };
