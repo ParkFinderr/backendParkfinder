@@ -10,6 +10,10 @@ const systemRoutes = require('./routes/systemRoutes');
 const areaRoutes = require('./routes/areaAndSlotRoutes');
 const gateRoutes = require('./routes/gateRoutes')
 const reservationRoutes = require('./routes/reservationRoutes');
+const { startCronJobs } = require('./service/reservationTime');
+
+// cron
+startCronJobs();
 
 const app = express();
 const PORT = process.env.PORT;
