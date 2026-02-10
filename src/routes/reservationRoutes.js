@@ -4,7 +4,7 @@ const reservationController = require('../controllers/reservationController');
 const { verifyToken } = require('../middlewares/authMiddleware');
 
 // reservasi
-router.post('/reservations', verifyToken, reservationController.createReservation);
+router.post('/reservations', reservationController.createReservation);
 
 // mengambil reservasi berdasarkan id
 router.get('/reservations/:id', reservationController.getReservationById);
