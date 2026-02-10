@@ -132,7 +132,7 @@ const arriveReservation = async (req, res) => {
       const slotRef = db.collection('slots').doc(data.slotId);
       const slotDoc = await t.get(slotRef);
 
-      // Note: Jika alat belum ada, logic ini bisa di-comment sementara untuk testing Postman
+      // logic sensor
       /*
       if (slotDoc.data().sensorStatus !== 1) {
         throw new Error('sensorNotDetected'); 
@@ -244,4 +244,64 @@ const cancelReservation = async (req, res) => {
   }
 };
 
-module.exports = { createReservation, getReservationById, getUserReservations, arriveReservation, completeReservation, cancelReservation };
+// pindah reservasi
+const swapReservation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error, value } = swapReservationSchema.validate(req.body);
+    if (error) return sendError(res, 400, error.details[0].message);
+
+    const { newSlotId } = value;
+
+    await db.runTransaction(async (t) => {
+
+      const resRef = db.collection('reservations').doc(id);
+      const resDoc = await t.get(resRef);
+      if (!resDoc.exists) throw new Error('RerervationNotFound');
+      const data = resDoc.data();
+
+      if (data.status !== 'pending') throw new Error('CannotSwap'); 
+
+      const newSlotRef = db.collection('slots').doc(newSlotId);
+      const newSlotDoc = await t.get(newSlotRef);
+      if (!newSlotDoc.exists || newSlotDoc.data().appStatus !== 'available') {
+        throw new Error('newSlotBusy');
+      }
+
+      const oldSlotRef = db.collection('slots').doc(data.slotId);
+      const oldSlotDoc = await t.get(oldSlotRef);
+
+      t.update(resRef, {
+        slotId: newSlotId,
+        slotName: newSlotDoc.data().slotName,
+        history: admin.firestore.FieldValue.arrayUnion({
+            fromSlot: data.slotName,
+            toSlot: newSlotDoc.data().slotName,
+            at: new Date().toISOString()
+        })
+      });
+
+      t.update(oldSlotRef, { 
+        appStatus: 'available',
+        currentReservationId: null
+      });
+
+      t.update(newSlotRef, {
+        appStatus: 'booked',
+        currentReservationId: id
+      });
+
+      publishMqttCommand(`parkfinder/control/${oldSlotDoc.data().areaId}/${oldSlotDoc.data().slotName}`, 'setAvailable');
+      publishMqttCommand(`parkfinder/control/${newSlotDoc.data().areaId}/${newSlotDoc.data().slotName}`, 'setReserved'); 
+    });
+
+    return sendSuccess(res, 200, 'Berhasil pindah slot.');
+
+  } catch (error) {
+    if (error.message === 'newSlotBusy') return sendError(res, 400, 'Slot tujuan tidak tersedia atau tidak ditemukan.');
+    if (error.message === 'CannotSwap') return sendError(res, 400, 'Tidak bisa pindah slot setelah check-in.');
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createReservation, getReservationById, getUserReservations, arriveReservation, completeReservation, cancelReservation, swapReservation };
