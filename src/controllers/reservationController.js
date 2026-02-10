@@ -13,21 +13,22 @@ const publishMqttCommand = (topic, message) => {
 // membuat reservasi baru
 const createReservation = async (req, res) => {
   try {
-    
+
     const { error, value } = createReservationSchema.validate(req.body);
     if (error) return sendError(res, 400, error.details[0].message);
 
-    const { ticketId, slotId } = value;
+    const { ticketId, slotId, plateNumber, name } = value;
+
+    let successResponseData = null;
 
     await db.runTransaction(async (t) => {
-      
+
       const ticketRef = db.collection('tickets').doc(ticketId);
       const slotRef = db.collection('slots').doc(slotId);
       
       const ticketDoc = await t.get(ticketRef);
       const slotDoc = await t.get(slotRef);
 
-      
       if (!ticketDoc.exists) throw new Error('TicketNotFound');
       const ticketData = ticketDoc.data();
 
@@ -39,23 +40,51 @@ const createReservation = async (req, res) => {
 
       if (slotData.appStatus !== 'available') throw new Error('SlotBusy');
 
+      let finalName = 'Tamu';
+      let finalPlateNumber = plateNumber || null;
+      const claimedBy = ticketData.claimedBy; 
+
+      if (claimedBy && !claimedBy.startsWith('guest-')) {
+ 
+        const userRef = db.collection('users').doc(claimedBy);
+        const userDoc = await t.get(userRef);
+
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          finalName = userData.name;
+
+          if (!finalPlateNumber) {
+             finalPlateNumber = userData.defaultLicensePlate || 
+                               (userData.vehicles.length > 0 ? userData.vehicles[0].plateNumber : null);
+          }
+        }
+      } else {
+   
+        if (name) finalName = name;
+        
+        if (!finalPlateNumber) throw new Error('PlateNumberRequiredForGuest');
+        if (!name) throw new Error('NameRequiredForGuest');
+      }
+
+
       const newReservationRef = db.collection('reservations').doc();
       const reservationData = {
         reservationId: newReservationRef.id,
         ticketId: ticketId,
-        userId: ticketData.claimedBy, 
+        userId: claimedBy, 
         slotId: slotId,
         slotName: slotData.slotName,
-        plateNumber: null,
-        status: 'pending', 
         
+        name: finalName,
+        plateNumber: finalPlateNumber,
+
+        status: 'pending', 
         timestamps: {
           created: new Date().toISOString(),
           arrived: null,
           completed: null
         },
-        
-        history: []
+        history: [] 
       };
 
       t.set(newReservationRef, reservationData);
@@ -70,16 +99,29 @@ const createReservation = async (req, res) => {
       });
 
       publishMqttCommand(`parkfinder/control/${slotData.areaId}/${slotData.slotName}`, 'setReserved');
+
+      successResponseData = {
+        reservationId: newReservationRef.id,
+        status: 'pending',
+        slotName: slotData.slotName,
+        plateNumber: finalPlateNumber,
+        name: finalName,
+        ticketId: ticketId,
+        qrCode: ticketData.qrCode
+      };
     });
 
-    return sendSuccess(res, 201, 'Booking berhasil. Silakan menuju slot parkir.');
+    return sendSuccess(res, 201, 'Booking berhasil. Silakan menuju slot parkir.', successResponseData);
 
   } catch (error) {
+    if (error.message === 'PlateNumberRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Plat Nomor kendaraan.');
+    if (error.message === 'NameRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Nama Pemesan.');
     if (error.message === 'TicketInvalid') return sendError(res, 400, 'Tiket belum di-scan atau sudah tidak aktif.');
     if (error.message === 'TicketAlreadyHasReservation') return sendError(res, 400, 'Tiket ini sudah memiliki reservasi aktif.');
     if (error.message === 'SlotBusy') return sendError(res, 400, 'Slot parkir sudah terisi atau dibooking orang lain.');
     if (error.message === 'TicketNotFound') return sendError(res, 404, 'Tiket tidak ditemukan.');
     if (error.message === 'SlotNotFound') return sendError(res, 404, 'Slot parkir tidak ditemukan.');
+    
     return sendServerError(res, error);
   }
 };
