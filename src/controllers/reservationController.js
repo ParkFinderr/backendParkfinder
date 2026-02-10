@@ -207,4 +207,41 @@ const completeReservation = async (req, res) => {
   }
 };
 
-module.exports = { createReservation, getReservationById, getUserReservations, arriveReservation, completeReservation };
+// batal reservasi
+const cancelReservation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.runTransaction(async (t) => {
+      const resRef = db.collection('reservations').doc(id);
+      const resDoc = await t.get(resRef);
+      
+      if (!resDoc.exists) throw new Error('ReservationNotFound');
+      const data = resDoc.data();
+
+      if (data.status !== 'pending') throw new Error('CannotCancel');
+
+      const slotRef = db.collection('slots').doc(data.slotId);
+      const ticketRef = db.collection('tickets').doc(data.ticketId);
+      const slotDoc = await t.get(slotRef);
+
+      t.update(resRef, { status: 'cancelled' });
+
+      t.update(slotRef, { 
+        appStatus: 'available',
+        currentReservationId: null
+      });
+
+      t.update(ticketRef, { linkedReservationId: null });
+
+      publishMqttCommand(`parkfinder/control/${slotDoc.data().areaId}/${slotDoc.data().slotName}`, 'setAvailable');
+    });
+
+    return sendSuccess(res, 200, 'Reservasi berhasil dibatalkan.');
+  } catch (error) {
+    if (error.message === 'CannotCancel') return sendError(res, 400, 'Tidak bisa membatalkan reservasi yang sudah aktif atau selesai.');
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createReservation, getReservationById, getUserReservations, arriveReservation, completeReservation, cancelReservation };

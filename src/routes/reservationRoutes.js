@@ -18,4 +18,7 @@ router.patch('/reservations/:id/arrive', reservationController.arriveReservation
 // selesai parkir
 router.patch('/reservations/:id/complete', reservationController.completeReservation);
 
+// batal reservasi
+router.patch('/reservations/:id/cancel', reservationController.cancelReservation);
+
 module.exports = router;
