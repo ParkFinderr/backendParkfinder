@@ -1,6 +1,6 @@
 const Joi = require('joi');
 
-// skema reservasi 
+// skema reservasi
 const createReservationSchema = Joi.object({
   ticketId: Joi.string().required().messages({
     'string.empty': 'Ticket ID wajib diisi.',
@@ -9,6 +9,12 @@ const createReservationSchema = Joi.object({
   slotId: Joi.string().required().messages({
     'string.empty': 'Slot ID wajib diisi.',
     'any.required': 'Slot ID wajib dipilih.'
+  }),
+  plateNumber: Joi.string().uppercase().optional().messages({
+    'string.empty': 'Plat nomor tidak boleh kosong.'
+  }),
+  name: Joi.string().optional().messages({
+    'string.empty': 'Nama pemesan tidak boleh kosong.'
   })
 });
 
