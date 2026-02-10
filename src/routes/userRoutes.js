@@ -15,8 +15,11 @@ router.post('/users/vehicles', verifyToken, userController.addVehicle);
 // menghapus kendaraaan user
 router.delete('/users/vehicles/:id', verifyToken, userController.deleteVehicle);
 
-// admin mengambil data user
+// admin mengambil semua data user
 router.get('/admin/users', verifyToken, verifyAdmin, userController.getAllUsers);
+
+// admin mengambil data user dengan id
+router.get('/admin/users/:id', verifyToken, verifyAdmin, userController.getUserByIdAdmin);
 
 // admin hapus user
 router.delete('/admin/users/:id', verifyToken, verifyAdmin, userController.deleteUser);

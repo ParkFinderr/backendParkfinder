@@ -114,7 +114,7 @@ const deleteVehicle = async (req, res) => {
   }
 };
 
-//admin mengambil data user
+//admin mengambil semua data user
 const getAllUsers = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -133,7 +133,6 @@ const getAllUsers = async (req, res) => {
       .offset(offset)
       .get();
     
-    // 5. Mapping Data (Filter sensitif tetap jalan)
     const allUsers = usersSnapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -167,6 +166,36 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+//admin mengambil data user dengan id
+const getUserByIdAdmin = async (req, res) => {
+  try {
+    const { id } = req.params; 
+
+    const userDoc = await db.collection('users').doc(id).get();
+
+    if (!userDoc.exists) {
+      return sendError(res, 404, 'User tidak ditemukan.');
+    }
+
+    const userData = userDoc.data();
+
+    delete userData.password;
+    delete userData.fcmToken; 
+    delete userData.createdAt;
+
+    const responseData = {
+        userId: id,
+        ...userData
+    };
+
+    return sendSuccess(res, 200, 'Data pengguna berhasil diambil.', responseData);
+
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+// admin hapus user
 const deleteUser = async (req, res) => {
   try {
 
@@ -192,4 +221,4 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { getProfile, updateProfile, addVehicle, deleteVehicle, getAllUsers, deleteUser };
+module.exports = { getProfile, updateProfile, addVehicle, deleteVehicle, getAllUsers, deleteUser, getUserByIdAdmin };

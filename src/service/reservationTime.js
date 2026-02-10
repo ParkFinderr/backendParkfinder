@@ -14,7 +14,8 @@ const startCronJobs = () => {
     try {
       const now = new Date();
 
-      const timeoutLimit = new Date(now.getTime() - 30 * 60000).toISOString();
+      // testing coba 1 menit biar ga lama
+      const timeoutLimit = new Date(now.getTime() - 1 * 60000).toISOString();
 
       const expiredSnapshot = await db.collection('reservations')
         .where('status', '==', 'pending')
