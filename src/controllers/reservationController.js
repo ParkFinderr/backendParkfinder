@@ -159,4 +159,52 @@ const arriveReservation = async (req, res) => {
   }
 };
 
-module.exports = { createReservation, getReservationById, getUserReservations, arriveReservation };
+// konfirmasi selesai parkir
+const completeReservation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.runTransaction(async (t) => {
+      const resRef = db.collection('reservations').doc(id);
+      const resDoc = await t.get(resRef);
+      if (!resDoc.exists) throw new Error('ReservationNotFound');
+
+      const data = resDoc.data();
+      if (data.status !== 'active') throw new Error('InvalidStatusForComplete');
+
+      const slotRef = db.collection('slots').doc(data.slotId);
+      const ticketRef = db.collection('tickets').doc(data.ticketId);
+      const userRef = db.collection('users').doc(data.userId);
+
+      t.update(resRef, { 
+        status: 'completed', 
+        'timestamps.completed': new Date().toISOString() 
+      });
+
+      t.update(slotRef, { 
+        appStatus: 'available',
+        currentReservationId: null
+      });
+
+      t.update(ticketRef, { 
+        status: 'closed',
+        linkedReservationId: null 
+      });
+
+      if (!data.userId.startsWith('guest-')) {
+         t.update(userRef, { activeTicketId: null });
+      }
+
+      const slotDoc = await t.get(slotRef);
+      publishMqttCommand(`parkfinder/control/${slotDoc.data().areaId}/${slotDoc.data().slotName}`, 'setAvailable');
+    });
+
+    return sendSuccess(res, 200, 'Parkir selesai. Terima kasih!');
+
+  } catch (error) {
+    if (error.message === 'InvalidStatusForComplete') return sendError(res, 400, 'Hanya reservasi aktif yang bisa diselesaikan.');
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createReservation, getReservationById, getUserReservations, arriveReservation, completeReservation };

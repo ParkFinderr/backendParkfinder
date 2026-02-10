@@ -15,4 +15,7 @@ router.get('/users/:userId/reservations', verifyToken, reservationController.get
 // konfirmasi datang di slot parkir
 router.patch('/reservations/:id/arrive', reservationController.arriveReservation);
 
+// selesai parkir
+router.patch('/reservations/:id/complete', reservationController.completeReservation);
+
 module.exports = router;
