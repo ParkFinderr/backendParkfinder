@@ -12,4 +12,7 @@ router.get('/reservations/:id', reservationController.getReservationById);
 // histori user reservasi
 router.get('/users/:userId/reservations', verifyToken, reservationController.getUserReservations);
 
+// konfirmasi datang di slot parkir
+router.patch('/reservations/:id/arrive', reservationController.arriveReservation);
+
 module.exports = router;

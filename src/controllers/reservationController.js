@@ -28,16 +28,16 @@ const createReservation = async (req, res) => {
       const slotDoc = await t.get(slotRef);
 
       
-      if (!ticketDoc.exists) throw new Error('TICKET_NOT_FOUND');
+      if (!ticketDoc.exists) throw new Error('TicketNotFound');
       const ticketData = ticketDoc.data();
 
-      if (ticketData.status !== 'claimed') throw new Error('TICKET_INVALID'); 
-      if (ticketData.linkedReservationId) throw new Error('TICKET_ALREADY_HAS_RESERVATION');
+      if (ticketData.status !== 'claimed') throw new Error('TicketInvalid'); 
+      if (ticketData.linkedReservationId) throw new Error('TicketAlreadyHasReservation');
 
-      if (!slotDoc.exists) throw new Error('SLOT_NOT_FOUND');
+      if (!slotDoc.exists) throw new Error('SlotNotFound');
       const slotData = slotDoc.data();
 
-      if (slotData.appStatus !== 'available') throw new Error('SLOT_BUSY');
+      if (slotData.appStatus !== 'available') throw new Error('SlotBusy');
 
       const newReservationRef = db.collection('reservations').doc();
       const reservationData = {
@@ -116,4 +116,47 @@ const getUserReservations = async (req, res) => {
   }
 };
 
-module.exports = { createReservation, getReservationById, getUserReservations}
+// konfirmasi  datang di slot parkir
+const arriveReservation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await db.runTransaction(async (t) => {
+      const resRef = db.collection('reservations').doc(id);
+      const resDoc = await t.get(resRef);
+      if (!resDoc.exists) throw new Error('ReservationNotFound');
+      
+      const data = resDoc.data();
+      if (data.status !== 'pending') throw new Error('InvalidStatusForArrive');
+
+      const slotRef = db.collection('slots').doc(data.slotId);
+      const slotDoc = await t.get(slotRef);
+
+      // Note: Jika alat belum ada, logic ini bisa di-comment sementara untuk testing Postman
+      /*
+      if (slotDoc.data().sensorStatus !== 1) {
+        throw new Error('sensorNotDetected'); 
+      }
+      */
+
+      t.update(resRef, { 
+        status: 'active', 
+        'timestamps.arrived': new Date().toISOString() 
+      });
+
+      t.update(slotRef, { appStatus: 'occupied' });
+
+      publishMqttCommand(`parkfinder/control/${slotDoc.data().areaId}/${slotDoc.data().slotName}`, 'setOccupied');
+    });
+
+    return sendSuccess(res, 200, 'Kedatangan dikonfirmasi. Selamat parkir.');
+
+  } catch (error) {
+    if (error.message === 'SesorNotDetected') return sendError(res, 400, 'Sensor tidak mendeteksi kendaraan. Pastikan mobil sudah parkir dengan benar.');
+    if (error.message === 'InvalidStatusForArrive') return sendError(res, 400, 'Status reservasi tidak valid untuk konfirmasi kedatangan.');
+    if (error.message === 'ReservationNotFound') return sendError(res, 404, 'Reservasi tidak ditemukan.');
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createReservation, getReservationById, getUserReservations, arriveReservation };
