@@ -22,6 +22,6 @@ router.patch('/reservations/:id/complete', reservationController.completeReserva
 router.patch('/reservations/:id/cancel', reservationController.cancelReservation);
 
 // ganti reservasi
-router.put('/reservations/:id/swap', reservationController.swapReservation);
+router.patch('/reservations/:id/swap', reservationController.swapReservation);
 
 module.exports = router;
