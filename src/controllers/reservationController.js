@@ -84,4 +84,18 @@ const createReservation = async (req, res) => {
   }
 };
 
-module.exports = { createReservation}
+// mengambil reservasi berdasarkan id
+const getReservationById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doc = await db.collection('reservations').doc(id).get();
+    
+    if (!doc.exists) return sendError(res, 404, 'Data reservasi tidak ditemukan.');
+
+    return sendSuccess(res, 200, 'Detail reservasi ditemukan.', doc.data());
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createReservation, getReservationById }
