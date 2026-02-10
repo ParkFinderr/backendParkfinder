@@ -98,4 +98,22 @@ const getReservationById = async (req, res) => {
   }
 };
 
-module.exports = { createReservation, getReservationById }
+// histori user reverrvasi
+const getUserReservations = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const snapshot = await db.collection('reservations')
+      .where('userId', '==', userId)
+      .orderBy('timestamps.created', 'desc')
+      .limit(20)
+      .get();
+
+    const data = snapshot.docs.map(doc => doc.data());
+    return sendSuccess(res, 200, 'Riwayat reservasi user berhasil diambil.', data);
+  } catch (error) {
+    return sendServerError(res, error);
+  }
+};
+
+module.exports = { createReservation, getReservationById, getUserReservations}
