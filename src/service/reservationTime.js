@@ -1,11 +1,6 @@
-// src/services/cronService.js
 const cron = require('node-cron');
 const { db } = require('../config/firebase');
-
-// fungsi sementara simulasi mqtt
-const publishMqttCommand = (topic, message) => {
-  console.log(`[Auto-Cancel MQTT] Topic: ${topic} | Payload: ${message}`);
-};
+const { redisClient } = require('../config/redis');
 
 const startCronJobs = () => {
   console.log('Memeriksa waktu expired reservation setiap menit...');
@@ -14,8 +9,7 @@ const startCronJobs = () => {
     try {
       const now = new Date();
 
-      // testing coba 1 menit biar ga lama
-      const timeoutLimit = new Date(now.getTime() - 30 * 60000).toISOString();
+      const timeoutLimit = new Date(now.getTime() - 1 * 60000).toISOString(); 
 
       const expiredSnapshot = await db.collection('reservations')
         .where('status', '==', 'pending')
@@ -23,45 +17,59 @@ const startCronJobs = () => {
         .get();
 
       if (expiredSnapshot.empty) {
- 
         return;
       }
 
-      console.log(`Menemukan ${expiredSnapshot.size} expires reservasi, membatalkan reservasi...`);
+      console.log(`Menemukan ${expiredSnapshot.size} reservasi expired. Membatalkan...`);
 
       const batch = db.batch();
-      const updates = []; 
+      const notificationTasks = [];
 
       for (const doc of expiredSnapshot.docs) {
         const resData = doc.data();
+        
         const resRef = db.collection('reservations').doc(doc.id);
         const slotRef = db.collection('slots').doc(resData.slotId);
         const ticketRef = db.collection('tickets').doc(resData.ticketId);
 
+        // 1. Update Database (Batch)
         batch.update(resRef, { status: 'cancelled' });
-
         batch.update(slotRef, { 
           appStatus: 'available',
           currentReservationId: null
         });
-
         batch.update(ticketRef, { linkedReservationId: null });
 
         const slotDoc = await slotRef.get();
         if (slotDoc.exists) {
-            const { areaId, slotName } = slotDoc.data();
-            updates.push(() => publishMqttCommand(`parkfinder/control/${areaId}/${slotName}`, 'setAvailable'));
+            const { slotName } = slotDoc.data();
+            
+            notificationTasks.push(async () => {
+                const commandPayload = {
+                    action: 'cancelSlot',
+                    slotId: resData.slotId,
+                    slotName: slotName,
+                    status: 'available'
+                };
+
+                try {
+                    await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
+                    console.log(`Mengirim perintah cancelSlot untuk ${slotName}`);
+                } catch (err) {
+                    console.error('[CronRedisError]', err);
+                }
+            });
         }
       }
 
       await batch.commit();
 
-      updates.forEach(task => task());
+      await Promise.all(notificationTasks.map(task => task()));
 
-      console.log(`✅ Successfully cancelled ${expiredSnapshot.size} reservations.`);
+      console.log(`Sukses membatalkan ${expiredSnapshot.size} reservasi.`);
 
     } catch (error) {
-      console.error('❌ Error in Auto-Cancel Cron Job:', error);
+      console.error('Error in Auto Cancel Cron Job:', error);
     }
   });
 };
