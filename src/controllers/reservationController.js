@@ -339,13 +339,12 @@ const swapReservation = async (req, res) => {
     const { newSlotId } = value;
 
     await db.runTransaction(async (t) => {
-
       const resRef = db.collection('reservations').doc(id);
       const resDoc = await t.get(resRef);
       if (!resDoc.exists) throw new Error('RerervationNotFound');
       const data = resDoc.data();
 
-      if (data.status !== 'pending') throw new Error('CannotSwap'); 
+      if (data.status !== 'pending') throw new Error('CannotSwap');
 
       const newSlotRef = db.collection('slots').doc(newSlotId);
       const newSlotDoc = await t.get(newSlotRef);
@@ -360,13 +359,13 @@ const swapReservation = async (req, res) => {
         slotId: newSlotId,
         slotName: newSlotDoc.data().slotName,
         history: admin.firestore.FieldValue.arrayUnion({
-            fromSlot: data.slotName,
-            toSlot: newSlotDoc.data().slotName,
-            at: new Date().toISOString()
+          fromSlot: data.slotName,
+          toSlot: newSlotDoc.data().slotName,
+          at: new Date().toISOString()
         })
       });
 
-      t.update(oldSlotRef, { 
+      t.update(oldSlotRef, {
         appStatus: 'available',
         currentReservationId: null
       });
@@ -376,8 +375,26 @@ const swapReservation = async (req, res) => {
         currentReservationId: id
       });
 
-      publishMqttCommand(`parkfinder/control/${oldSlotDoc.data().areaId}/${oldSlotDoc.data().slotName}`, 'setAvailable');
-      publishMqttCommand(`parkfinder/control/${newSlotDoc.data().areaId}/${newSlotDoc.data().slotName}`, 'setReserved'); 
+      // redis publish
+      try {
+        await redisClient.publish('parkfinder-commands', JSON.stringify({
+          action: 'cancelSlot',
+          slotId: data.slotId,
+          slotName: oldSlotDoc.data().slotName,
+          status: 'available'
+        }));
+
+        // redis publis
+        await redisClient.publish('parkfinder-commands', JSON.stringify({
+          action: 'reserveSlot',
+          slotId: newSlotId,
+          slotName: newSlotDoc.data().slotName,
+          status: 'booked'
+        }));
+        console.log(`[REDIS] Swapped from ${oldSlotDoc.data().slotName} to ${newSlotDoc.data().slotName}`);
+      } catch (redisError) {
+        console.error('[REDIS ERROR]', redisError);
+      }
     });
 
     return sendSuccess(res, 200, 'Berhasil pindah slot.');
