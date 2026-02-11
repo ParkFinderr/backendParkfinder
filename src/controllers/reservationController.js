@@ -2,37 +2,29 @@ const admin = require('firebase-admin');
 const { db } = require('../config/firebase');
 const { createReservationSchema, swapReservationSchema } = require('../models/reservationModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
+const { redisClient } = require('../config/redis');
 
-
-// mqqt trigger
-// untuk testing sebelum dengan mqtt asli
-const publishMqttCommand = (topic, message) => {
-  console.log(`[MQTT OUT] Topic: ${topic} | Payload: ${message}`);
-};
 
 // membuat reservasi baru
 const createReservation = async (req, res) => {
   try {
-
     const { error, value } = createReservationSchema.validate(req.body);
     if (error) return sendError(res, 400, error.details[0].message);
 
     const { ticketId, slotId, plateNumber, name } = value;
-
     let successResponseData = null;
 
     await db.runTransaction(async (t) => {
-
       const ticketRef = db.collection('tickets').doc(ticketId);
       const slotRef = db.collection('slots').doc(slotId);
-      
+
       const ticketDoc = await t.get(ticketRef);
       const slotDoc = await t.get(slotRef);
 
       if (!ticketDoc.exists) throw new Error('TicketNotFound');
       const ticketData = ticketDoc.data();
 
-      if (ticketData.status !== 'claimed') throw new Error('TicketInvalid'); 
+      if (ticketData.status !== 'claimed') throw new Error('TicketInvalid');
       if (ticketData.linkedReservationId) throw new Error('TicketAlreadyHasReservation');
 
       if (!slotDoc.exists) throw new Error('SlotNotFound');
@@ -42,10 +34,9 @@ const createReservation = async (req, res) => {
 
       let finalName = 'Tamu';
       let finalPlateNumber = plateNumber || null;
-      const claimedBy = ticketData.claimedBy; 
+      const claimedBy = ticketData.claimedBy;
 
       if (claimedBy && !claimedBy.startsWith('guest-')) {
- 
         const userRef = db.collection('users').doc(claimedBy);
         const userDoc = await t.get(userRef);
 
@@ -54,51 +45,59 @@ const createReservation = async (req, res) => {
           finalName = userData.name;
 
           if (!finalPlateNumber) {
-             finalPlateNumber = userData.defaultLicensePlate || 
-                               (userData.vehicles.length > 0 ? userData.vehicles[0].plateNumber : null);
+            finalPlateNumber = userData.defaultLicensePlate ||
+              (userData.vehicles.length > 0 ? userData.vehicles[0].plateNumber : null);
           }
         }
       } else {
-   
         if (name) finalName = name;
-        
         if (!finalPlateNumber) throw new Error('PlateNumberRequiredForGuest');
         if (!name) throw new Error('NameRequiredForGuest');
       }
-
 
       const newReservationRef = db.collection('reservations').doc();
       const reservationData = {
         reservationId: newReservationRef.id,
         ticketId: ticketId,
-        userId: claimedBy, 
+        userId: claimedBy,
         slotId: slotId,
         slotName: slotData.slotName,
-        
         name: finalName,
         plateNumber: finalPlateNumber,
-
-        status: 'pending', 
+        status: 'pending',
         timestamps: {
           created: new Date().toISOString(),
           arrived: null,
           completed: null
         },
-        history: [] 
+        history: []
       };
 
       t.set(newReservationRef, reservationData);
-      
-      t.update(slotRef, { 
+
+      t.update(slotRef, {
         appStatus: 'booked',
-        currentReservationId: newReservationRef.id 
+        currentReservationId: newReservationRef.id
       });
 
-      t.update(ticketRef, { 
-        linkedReservationId: newReservationRef.id 
+      t.update(ticketRef, {
+        linkedReservationId: newReservationRef.id
       });
 
-      publishMqttCommand(`parkfinder/control/${slotData.areaId}/${slotData.slotName}`, 'setReserved');
+      // redis publish
+      const commandPayload = {
+        action: 'reserveSlot',
+        slotId: slotId,
+        slotName: slotData.slotName,
+        status: 'booked'
+      };
+
+      try {
+        await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
+        console.log(`[REDIS] Published reserveSlot for ${slotData.slotName}`);
+      } catch (redisError) {
+        console.error('[REDIS ERROR]', redisError);
+      }
 
       successResponseData = {
         reservationId: newReservationRef.id,
@@ -121,7 +120,7 @@ const createReservation = async (req, res) => {
     if (error.message === 'SlotBusy') return sendError(res, 400, 'Slot parkir sudah terisi atau dibooking orang lain.');
     if (error.message === 'TicketNotFound') return sendError(res, 404, 'Tiket tidak ditemukan.');
     if (error.message === 'SlotNotFound') return sendError(res, 404, 'Slot parkir tidak ditemukan.');
-    
+
     return sendServerError(res, error);
   }
 };

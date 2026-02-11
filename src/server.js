@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const { connectRedis } = require('./config/redis');
 
 // import Routes
 const authRoutes = require('./routes/authRoutes');
@@ -42,3 +43,17 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`[SERVER] ParkFinder berjalan di http://localhost:${PORT}`);
 });
+
+// const startServer = async () => {
+//   try {
+//     await connectRedis(); // <--- JALANKAN INI
+    
+//     app.listen(port, () => {
+//       console.log(`[SERVER] ParkFinder berjalan di http://localhost:${port}`);
+//     });
+//   } catch (error) {
+//     console.error('Gagal menjalankan server:', error);
+//   }
+// }
+
+// startServer();
