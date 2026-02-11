@@ -287,7 +287,7 @@ const cancelReservation = async (req, res) => {
     await db.runTransaction(async (t) => {
       const resRef = db.collection('reservations').doc(id);
       const resDoc = await t.get(resRef);
-      
+
       if (!resDoc.exists) throw new Error('ReservationNotFound');
       const data = resDoc.data();
 
@@ -299,14 +299,27 @@ const cancelReservation = async (req, res) => {
 
       t.update(resRef, { status: 'cancelled' });
 
-      t.update(slotRef, { 
+      t.update(slotRef, {
         appStatus: 'available',
         currentReservationId: null
       });
 
       t.update(ticketRef, { linkedReservationId: null });
 
-      publishMqttCommand(`parkfinder/control/${slotDoc.data().areaId}/${slotDoc.data().slotName}`, 'setAvailable');
+      // redis
+      const commandPayload = {
+        action: 'cancelSlot',
+        slotId: data.slotId,
+        slotName: slotDoc.data().slotName,
+        status: 'available'
+      };
+
+      try {
+        await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
+        console.log(`[REDIS] Published cancelSlot for ${slotDoc.data().slotName}`);
+      } catch (redisError) {
+        console.error('[REDIS ERROR]', redisError);
+      }
     });
 
     return sendSuccess(res, 200, 'Reservasi berhasil dibatalkan.');
