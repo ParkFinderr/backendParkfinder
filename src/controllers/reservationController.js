@@ -254,7 +254,7 @@ const completeReservation = async (req, res) => {
 
       // redis pubslish
       const commandPayload = {
-        action: 'cancelSlot',
+        action: 'leaveSlot',
         slotId: data.slotId,
         slotName: slotDoc.data().slotName,
         status: 'available'
