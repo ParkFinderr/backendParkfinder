@@ -19,7 +19,7 @@ const addSlot = async (req, res) => {
       
       const areaDoc = await t.get(areaRef);
       if (!areaDoc.exists) {
-        throw new Error('AREA_NOT_FOUND'); 
+        throw new Error('AreaNotFound'); 
       }
 
       const sensorCheck = await db.collection('slots')
@@ -27,7 +27,7 @@ const addSlot = async (req, res) => {
         .get();
       
       if (!sensorCheck.empty) {
-        throw new Error('DUPLICATE_SENSOR');
+        throw new Error('DuplicateSensor');
       }
 
       const newSlot = {
@@ -52,10 +52,10 @@ const addSlot = async (req, res) => {
 
   } catch (error) {
 
-    if (error.message === 'AREA_NOT_FOUND') {
+    if (error.message === 'AreaNotFound') {
       return sendError(res, 404, 'ID Area tidak valid.');
     }
-    if (error.message === 'DUPLICATE_SENSOR') {
+    if (error.message === 'DuplicateSensor') {
       return sendError(res, 400, 'Sensor ID sudah digunakan di slot lain.');
     }
     return sendServerError(res, error);
