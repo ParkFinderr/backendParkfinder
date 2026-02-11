@@ -377,7 +377,7 @@ const swapReservation = async (req, res) => {
 
       // redis publish
       try {
-        await redisClient.publish('parkfinder-commands', JSON.stringify({
+        await redisClient.publish('parkfinderCommands', JSON.stringify({
           action: 'cancelSlot',
           slotId: data.slotId,
           slotName: oldSlotDoc.data().slotName,
@@ -385,7 +385,7 @@ const swapReservation = async (req, res) => {
         }));
 
         // redis publis
-        await redisClient.publish('parkfinder-commands', JSON.stringify({
+        await redisClient.publish('parkfinderCommands', JSON.stringify({
           action: 'reserveSlot',
           slotId: newSlotId,
           slotName: newSlotDoc.data().slotName,
