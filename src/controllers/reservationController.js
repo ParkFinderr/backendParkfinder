@@ -262,7 +262,7 @@ const completeReservation = async (req, res) => {
 
       try {
         await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
-        console.log(`[REDIS] Published cancelSlot for ${slotDoc.data().slotName}`);
+        console.log(`[REDIS] Published leaveSlot for ${slotDoc.data().slotName}`);
       } catch (redisError) {
         console.error('[REDIS ERROR]', redisError);
       }
