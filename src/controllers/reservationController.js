@@ -166,28 +166,41 @@ const arriveReservation = async (req, res) => {
       const resRef = db.collection('reservations').doc(id);
       const resDoc = await t.get(resRef);
       if (!resDoc.exists) throw new Error('ReservationNotFound');
-      
+
       const data = resDoc.data();
       if (data.status !== 'pending') throw new Error('InvalidStatusForArrive');
 
       const slotRef = db.collection('slots').doc(data.slotId);
       const slotDoc = await t.get(slotRef);
 
-      // logic sensor
+      // logic sensordiaktifkan jika sensor sudah live)
       /*
       if (slotDoc.data().sensorStatus !== 1) {
-        throw new Error('sensorNotDetected'); 
+      throw new Error('sensorNotDetected');
       }
       */
 
-      t.update(resRef, { 
-        status: 'active', 
-        'timestamps.arrived': new Date().toISOString() 
+      t.update(resRef, {
+        status: 'active',
+        'timestamps.arrived': new Date().toISOString()
       });
 
       t.update(slotRef, { appStatus: 'occupied' });
 
-      publishMqttCommand(`parkfinder/control/${slotDoc.data().areaId}/${slotDoc.data().slotName}`, 'setOccupied');
+      // redish publish
+      const commandPayload = {
+        action: 'occupySlot',
+        slotId: data.slotId,
+        slotName: slotDoc.data().slotName,
+        status: 'occupied'
+      };
+
+      try {
+        await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
+        console.log(`[REDIS] Published occupySlot for ${slotDoc.data().slotName}`);
+      } catch (redisError) {
+        console.error('[REDIS ERROR]', redisError);
+      }
     });
 
     return sendSuccess(res, 200, 'Kedatangan dikonfirmasi. Selamat parkir.');
