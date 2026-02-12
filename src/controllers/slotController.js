@@ -111,37 +111,40 @@ const getSlotById = async (req, res) => {
 const updateSlot = async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const { error, value } = updateSlotSchema.validate(req.body);
-    if (error) return sendError(res, 400, error.details[0].message);
+    const { ...value } = req.body;
 
     const slotRef = db.collection('slots').doc(id);
     const doc = await slotRef.get();
-    
-    if (!doc.exists) return sendError(res, 404, 'Slot tidak ditemukan.');
 
-    if (value.sensorId && value.sensorId !== doc.data().sensorId) {
-      const sensorCheck = await db.collection('slots')
-        .where('sensorId', '==', value.sensorId)
-        .get();
-      
-      if (!sensorCheck.empty) {
-        return sendError(res, 400, 'Sensor ID sudah digunakan di slot lain.');
-      }
-    }
+    if (!doc.exists) return sendError(res, 404, 'Slot not found');
 
-    // 4. Update Data
     await slotRef.update({ 
       ...value,
       lastUpdate: new Date().toISOString() 
     });
-    
-    return sendSuccess(res, 200, 'Data slot berhasil diperbarui.', {
-      id,
-      ...doc.data(), 
-      ...value       
-    });
 
+    if (value.appStatus) {
+        const slotName = doc.data().slotName;
+        let action = null;
+
+        if (value.appStatus === 'maintenance') {
+            action = 'maintenanceSlot'; 
+        } else if (value.appStatus === 'available') {
+            action = 'leaveSlot'; 
+        }
+
+        if (action) {
+            const payload = {
+                action: action,
+                slotId: id,
+                slotName: slotName,
+                status: value.appStatus
+            };
+            await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
+        }
+    }
+
+    return sendSuccess(res, 200, 'Slot updated successfully');
   } catch (error) {
     return sendServerError(res, error);
   }
