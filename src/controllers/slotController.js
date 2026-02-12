@@ -2,6 +2,7 @@ const admin = require('firebase-admin'); // Butuh ini untuk FieldValue
 const { db } = require('../config/firebase');
 const { createSlotSchema, updateSlotSchema } = require('../models/slotModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
+const { redisClient } = require('../config/redis');
 
 // menambahkan slot parkir baru
 const addSlot = async (req, res) => {
@@ -107,11 +108,14 @@ const getSlotById = async (req, res) => {
   }
 };
 
-// update slot
+// update status slot
 const updateSlot = async (req, res) => {
   try {
     const { id } = req.params;
-    const { ...value } = req.body;
+    const { error, value } = updateSlotSchema.validate(req.body);
+    if (error) {
+      return sendError(res, 400, error.details[0].message);
+    }
 
     const slotRef = db.collection('slots').doc(id);
     const doc = await slotRef.get();
@@ -130,7 +134,7 @@ const updateSlot = async (req, res) => {
         if (value.appStatus === 'maintenance') {
             action = 'maintenanceSlot'; 
         } else if (value.appStatus === 'available') {
-            action = 'leaveSlot'; 
+            action = 'freeSlot'; 
         }
 
         if (action) {
