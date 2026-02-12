@@ -6,17 +6,19 @@ services:
     container_name: parkfinder-api
     ports:
       - "3000:3000"
-  
+    
     env_file:
       - .env
     
     environment:
       - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
+      - REDIS_URL=
       - FIRESTORE_EMULATOR_HOST=host.docker.internal:8080
       - FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099
       - FIREBASE_STORAGE_EMULATOR_HOST=host.docker.internal:9199
       - GCLOUD_PROJECT=demo-parkfinder
       - STORAGE_BUCKET=demo-parkfinder.appspot.com
+
     extra_hosts:
       - "host.docker.internal:host-gateway"
