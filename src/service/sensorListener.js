@@ -7,7 +7,7 @@ const redisSubscriber = redisClient.duplicate();
 const initSensorListener = async () => {
     await redisSubscriber.connect();
     
-    console.log('Siap menerima data sensor dari Realtime Service...');
+    console.log('[SENSOR LISTENER] Siap menerima data sensor...');
 
     await redisSubscriber.subscribe('parkfinderSensorUpdate', async (message) => {
         try {
@@ -22,53 +22,72 @@ const initSensorListener = async () => {
             const slotData = slotDoc.data();
             const slotId = slotDoc.id;
 
+            const oldSensorStatus = slotData.sensorStatus;
+            const lastUpdateDate = new Date(slotData.lastUpdate);
+            const now = new Date();
+
             await slotDoc.ref.update({ 
                 sensorStatus: sensorValue,
-                lastUpdate: new Date().toISOString()
+                lastUpdate: now.toISOString()
             });
             
-            console.log(`[SENSOR UPDATE] ${slotName} status fisik: ${sensorValue}`);
+            console.log(`[SENSOR] ${slotName}: ${oldSensorStatus} -> ${sensorValue}`);
 
-            // sensor mendeteksi mobil masuk
             if (sensorValue === 1) {
                 
-                // parkir liar
                 if (slotData.appStatus === 'available') {
-                    console.warn(`⚠️ ALARM: Parkir Liar terdeteksi di ${slotName}!`);
-                    
-                    await slotDoc.ref.update({ appStatus: 'occupied' });
-                    
-                    await redisClient.publish('parkfinderCommands', JSON.stringify({
-                        action: 'alertSlot',
-                        slotId, slotName, status: 'unauthorized'
-                    }));
+                    console.warn(`ALARM: Parkir Liar di ${slotName} (Available)`);
+                    await handleAlert(slotDoc, slotName, 'unauthorized');
                 }
                 
-                //  salah parkir
+             
                 else if (slotData.appStatus === 'booked' || slotData.appStatus === 'reserved') {
                     if (slotData.currentReservationId) {
                          const resDoc = await db.collection('reservations').doc(slotData.currentReservationId).get();
-                    
                          if (resDoc.exists && resDoc.data().status === 'pending') {
-                             console.warn(`⚠️ ALARM: Penyusup (Salah Parkir) di ${slotName}!`);
-                             
-                             await redisClient.publish('parkfinderCommands', JSON.stringify({
-                                action: 'alertSlot',
-                                slotId, slotName, status: 'wrongParking'
-                            }));
+                             console.warn(`ALARM: Penyusup di ${slotName} (Booked)`);
+                             await handleAlert(slotDoc, slotName, 'wrongParking');
                          }
+                    }
+                }
+
+                else if (slotData.appStatus === 'occupied') {
+                    
+                    const diffSeconds = (now - lastUpdateDate) / 1000;
+
+                    if (oldSensorStatus === 0 && diffSeconds > 10) {
+                        console.warn(`[GHOST SWAP DETECTED] Slot ${slotName} sempat kosong ${diffSeconds}s lalu terisi lagi.`);
+                        
+                        if (slotData.currentReservationId) {
+                            console.log(`Menyelesaikan sesi lama: ${slotData.currentReservationId}`);
+                            
+                            await db.collection('reservations').doc(slotData.currentReservationId).update({
+                                status: 'completed',
+                                'timestamps.completed': new Date().toISOString()
+                            });
+
+                        }
+
+                        console.warn(`ALARM: Parkir Liar (Ghost Swap) di ${slotName}`);
+                        
+                        
+                        await slotDoc.ref.update({ 
+                            currentReservationId: null,
+                          
+                        });
+
+                        await redisClient.publish('parkfinderCommands', JSON.stringify({
+                            action: 'alertSlot',
+                            slotId, slotName, status: 'unauthorized'
+                        }));
                     }
                 }
             } 
             
-            // mobil keluar
             else {
-                 // sebelumnya parkir liar
                  if (slotData.appStatus === 'occupied' && !slotData.currentReservationId) {
                      console.log(`Parkir liar pergi dari ${slotName}, reset status.`);
-                     
                      await slotDoc.ref.update({ appStatus: 'available' });
-                     
                      await redisClient.publish('parkfinderCommands', JSON.stringify({
                         action: 'leaveSlot', slotId, slotName, status: 'available'
                     }));
@@ -79,6 +98,19 @@ const initSensorListener = async () => {
             console.error('[SENSOR LISTENER ERROR]', error);
         }
     });
+};
+
+
+const handleAlert = async (slotDoc, slotName, statusInfo) => {
+
+    await slotDoc.ref.update({ appStatus: 'occupied' });
+    
+    await redisClient.publish('parkfinderCommands', JSON.stringify({
+        action: 'alertSlot',
+        slotId: slotDoc.id,
+        slotName: slotName,
+        status: statusInfo
+    }));
 };
 
 module.exports = { initSensorListener };

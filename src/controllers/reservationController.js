@@ -172,32 +172,30 @@ const arriveReservation = async (req, res) => {
 
       const slotRef = db.collection('slots').doc(data.slotId);
       const slotDoc = await t.get(slotRef);
+      const slotData = slotDoc.data();
 
-      // logic sensordiaktifkan jika sensor sudah live)
-      /*
-      if (slotDoc.data().sensorStatus !== 1) {
-      throw new Error('sensorNotDetected');
+      if (slotData.sensorStatus !== 1) {
+         throw new Error('SensorNotDetected');
       }
-      */
 
       t.update(resRef, {
         status: 'active',
         'timestamps.arrived': new Date().toISOString()
       });
 
+      
       t.update(slotRef, { appStatus: 'occupied' });
 
-      // redish publish
       const commandPayload = {
         action: 'occupySlot',
         slotId: data.slotId,
-        slotName: slotDoc.data().slotName,
+        slotName: slotData.slotName,
         status: 'occupied'
       };
 
       try {
         await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
-        console.log(`[REDIS] Published occupySlot for ${slotDoc.data().slotName}`);
+        console.log(`[REDIS] Published occupySlot for ${slotData.slotName}`);
       } catch (redisError) {
         console.error('[REDIS ERROR]', redisError);
       }
@@ -206,7 +204,9 @@ const arriveReservation = async (req, res) => {
     return sendSuccess(res, 200, 'Kedatangan dikonfirmasi. Selamat parkir.');
 
   } catch (error) {
-    if (error.message === 'SesorNotDetected') return sendError(res, 400, 'Sensor tidak mendeteksi kendaraan. Pastikan mobil sudah parkir dengan benar.');
+    if (error.message === 'SensorNotDetected') {
+        return sendError(res, 400, 'Kendaraan belum terdeteksi oleh sensor. Silakan parkirkan mobil Anda dengan benar di slot tersebut sebelum konfirmasi.');
+    }
     if (error.message === 'InvalidStatusForArrive') return sendError(res, 400, 'Status reservasi tidak valid untuk konfirmasi kedatangan.');
     if (error.message === 'ReservationNotFound') return sendError(res, 404, 'Reservasi tidak ditemukan.');
     return sendServerError(res, error);
@@ -252,7 +252,6 @@ const completeReservation = async (req, res) => {
         t.update(userRef, { activeTicketId: null });
       }
 
-      // redis pubslish
       const commandPayload = {
         action: 'leaveSlot',
         slotId: data.slotId,
