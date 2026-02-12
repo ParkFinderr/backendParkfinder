@@ -6,9 +6,10 @@ COPY package*.json ./
 
 RUN npm install --production
 
+COPY serviceAccountKey.json ./serviceAccountKey.json
+
 COPY . .
 
 EXPOSE 3000
 
-# Perintah untuk menjalankan aplikasi
 CMD ["node", "src/server.js"]
