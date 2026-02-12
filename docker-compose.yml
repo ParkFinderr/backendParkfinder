@@ -3,16 +3,16 @@ version: '3.8'
 services:
   api-service:
     build: .
-    container_name: parkfinder-api
+    container_name: parkfinderApiService
     ports:
       - "3000:3000"
     environment:
       - PORT=3000
       - NODE_ENV=development
-      - REDIS_HOST=host.docker.internal 
+      - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
-
       - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+      - STORAGE_BUCKET=demo-parkfinder.appspot.com
     volumes:
       - ./serviceAccountKey.json:/app/serviceAccountKey.json
     extra_hosts:
