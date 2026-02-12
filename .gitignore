@@ -6,3 +6,4 @@ firebase.json
 firestore-debug.log
 .firebaserc
 storage.rules
+docker-compose.yml
