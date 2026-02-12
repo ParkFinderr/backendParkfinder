@@ -1,23 +1,23 @@
+// src/config/firebase.js
 const admin = require('firebase-admin');
-const serviceAccount = require('../../serviceAccountKey.json');
 require('dotenv').config();
 
-const storageBucket = process.env.STORAGE_BUCKET || 'demo-parkfinder.appspot.com';
+const STORAGE_BUCKET = process.env.STORAGE_BUCKET;
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  projectId: process.env.GCLOUD_PROJECT || serviceAccount.project_id,
-  storageBucket: storageBucket 
+  projectId: process.env.GCLOUD_PROJECT,
+  storageBucket: STORAGE_BUCKET
 });
 
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
 
-console.log(`[FIREBASE] Project ID: ${process.env.GCLOUD_PROJECT}`);
-console.log(`[FIREBASE] Storage Bucket: ${storageBucket}`);
-
+// Log koneksi (Opsional, untuk debug)
 if (process.env.FIRESTORE_EMULATOR_HOST) {
-  console.log(`[FIREBASE] 🔥 Menggunakan Firestore Emulator: ${process.env.FIRESTORE_EMULATOR_HOST}`);
+  console.log(`[DATABASE] Terhubung ke Firestore Emulator: ${process.env.FIRESTORE_EMULATOR_HOST}`);
+}
+if (process.env.FIREBASE_STORAGE_EMULATOR_HOST) {
+  console.log(`[STORAGE] Terhubung ke Storage Emulator: ${process.env.FIREBASE_STORAGE_EMULATOR_HOST}`);
 }
 
-module.exports = { admin, db, bucket };
+module.exports = { db, bucket };
