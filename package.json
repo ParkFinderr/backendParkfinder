@@ -2,10 +2,10 @@
   "name": "backendparkfinder",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
+"scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
-  },
+    "dev": "nodemon -L src/server.js" 
+},
   "author": "ivalhad",
   "license": "ISC",
   "description": "",
