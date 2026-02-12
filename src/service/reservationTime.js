@@ -3,75 +3,113 @@ const { db } = require('../config/firebase');
 const { redisClient } = require('../config/redis');
 
 const startCronJobs = () => {
-  console.log('Memeriksa waktu expired reservation setiap menit...');
+  console.log('[CRON] Sistem pemantauan waktu parkir berjalan...');
 
   cron.schedule('*/1 * * * *', async () => {
     try {
       const now = new Date();
+      const batch = db.batch();
+      let hasUpdates = false;
+      const redisTasks = [];
 
-      const timeoutLimit = new Date(now.getTime() - 30 * 60000).toISOString(); 
+     // auto cancel
+      const cancelLimit = new Date(now.getTime() - 30 * 60000).toISOString(); 
 
-      const expiredSnapshot = await db.collection('reservations')
+      const pendingSnapshot = await db.collection('reservations')
         .where('status', '==', 'pending')
-        .where('timestamps.created', '<=', timeoutLimit)
+        .where('timestamps.created', '<=', cancelLimit)
         .get();
 
-      if (expiredSnapshot.empty) {
-        return;
-      }
+      if (!pendingSnapshot.empty) {
+        console.log(`[AUTO-CANCEL] Membatalkan ${pendingSnapshot.size} booking expired.`);
+        hasUpdates = true;
 
-      console.log(`Menemukan ${expiredSnapshot.size} reservasi expired. Membatalkan...`);
-
-      const batch = db.batch();
-      const notificationTasks = [];
-
-      for (const doc of expiredSnapshot.docs) {
-        const resData = doc.data();
-        
-        const resRef = db.collection('reservations').doc(doc.id);
-        const slotRef = db.collection('slots').doc(resData.slotId);
-        const ticketRef = db.collection('tickets').doc(resData.ticketId);
-
-        // 1. Update Database (Batch)
-        batch.update(resRef, { status: 'cancelled' });
-        batch.update(slotRef, { 
-          appStatus: 'available',
-          currentReservationId: null
-        });
-        batch.update(ticketRef, { linkedReservationId: null });
-
-        const slotDoc = await slotRef.get();
-        if (slotDoc.exists) {
-            const { slotName } = slotDoc.data();
-            
-            notificationTasks.push(async () => {
-                const commandPayload = {
-                    action: 'cancelSlot',
-                    slotId: resData.slotId,
-                    slotName: slotName,
-                    status: 'available'
-                };
-
-                try {
-                    await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
-                    console.log(`Mengirim perintah cancelSlot untuk ${slotName}`);
-                } catch (err) {
-                    console.error('[CronRedisError]', err);
-                }
-            });
+        for (const doc of pendingSnapshot.docs) {
+          const resData = doc.data();
+          
+          batch.update(db.collection('reservations').doc(doc.id), { status: 'cancelled' });
+          batch.update(db.collection('slots').doc(resData.slotId), { 
+            appStatus: 'available',
+            currentReservationId: null 
+          });
+          
+          redisTasks.push(async () => {
+             await publishCommand('cancelSlot', resData.slotId, 'available');
+          });
         }
       }
 
-      await batch.commit();
+      // auto checkout
+      const checkoutLimit = new Date(now.getTime() - 2 * 60000).toISOString();
 
-      await Promise.all(notificationTasks.map(task => task()));
+      const occupiedSlotsSnapshot = await db.collection('slots')
+        .where('appStatus', '==', 'occupied')
+        .get();
 
-      console.log(`Sukses membatalkan ${expiredSnapshot.size} reservasi.`);
+      if (!occupiedSlotsSnapshot.empty) {
+        for (const slotDoc of occupiedSlotsSnapshot.docs) {
+          const slotData = slotDoc.data();
+          
+          if (slotData.sensorStatus === 0 && slotData.lastUpdate <= checkoutLimit) {
+             
+             if (slotData.currentReservationId) {
+                 console.log(`[AUTO-CHECKOUT] User lupa checkout di ${slotData.slotName}. Menyelesaikan otomatis...`);
+                 hasUpdates = true;
+
+                 const resRef = db.collection('reservations').doc(slotData.currentReservationId);
+                 batch.update(resRef, { 
+                    status: 'completed',
+                    'timestamps.completed': new Date().toISOString()
+                 });
+
+                 batch.update(slotDoc.ref, { 
+                    appStatus: 'available',
+                    currentReservationId: null
+                 });
+  
+                 redisTasks.push(async () => {
+                    await publishCommand('leaveSlot', slotDoc.id, 'available', slotData.slotName);
+                 });
+             }
+          }
+        }
+      }
+
+      if (hasUpdates) {
+        await batch.commit();
+        await Promise.all(redisTasks.map(task => task()));
+        console.log('[CRON] Sinkronisasi data selesai.');
+      }
 
     } catch (error) {
-      console.error('Error in Auto Cancel Cron Job:', error);
+      console.error('❌ Error in Cron Job:', error);
     }
   });
+};
+
+// Helper untuk kirim ke Redis (biar kodenya rapi)
+const publishCommand = async (action, slotId, status, slotName = null) => {
+    try {
+        // Jika slotName belum ada, kita cari dulu (untuk case Auto-Cancel)
+        let name = slotName;
+        if (!name) {
+            const slotDoc = await db.collection('slots').doc(slotId).get();
+            if (slotDoc.exists) name = slotDoc.data().slotName;
+        }
+
+        if (name) {
+            const payload = {
+                action: action,
+                slotId: slotId,
+                slotName: name,
+                status: status
+            };
+            await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
+            console.log(`[REDIS-CRON] Sent ${action} for ${name}`);
+        }
+    } catch (err) {
+        console.error('[REDIS ERROR]', err);
+    }
 };
 
 module.exports = { startCronJobs };
