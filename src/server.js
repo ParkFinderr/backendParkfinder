@@ -12,9 +12,9 @@ const areaRoutes = require('./routes/areaAndSlotRoutes');
 const gateRoutes = require('./routes/gateRoutes')
 const reservationRoutes = require('./routes/reservationRoutes');
 const { startCronJobs } = require('./service/reservationTime');
+const { initSensorListener } = require('./service/sensorListener');
 
-// cron
-startCronJobs();
+
 
 const app = express();
 const PORT = process.env.PORT;
@@ -43,6 +43,10 @@ app.get('/', (req, res) => {
 const startServer = async () => {
   try {
     await connectRedis(); 
+
+    startCronJobs();
+    
+    initSensorListener();
     
     app.listen(PORT, () => {
       console.log(`[SERVER] ParkFinder berjalan di http://localhost:${PORT}`);
