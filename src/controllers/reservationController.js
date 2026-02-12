@@ -36,7 +36,7 @@ const createReservation = async (req, res) => {
       let finalPlateNumber = plateNumber || null;
       const claimedBy = ticketData.claimedBy;
 
-      if (claimedBy && !claimedBy.startsWith('guest-')) {
+      if (claimedBy && !claimedBy.startsWith('guest ')) {
         const userRef = db.collection('users').doc(claimedBy);
         const userDoc = await t.get(userRef);
 
@@ -115,7 +115,7 @@ const createReservation = async (req, res) => {
   } catch (error) {
     if (error.message === 'PlateNumberRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Plat Nomor kendaraan.');
     if (error.message === 'NameRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Nama Pemesan.');
-    if (error.message === 'TicketInvalid') return sendError(res, 400, 'Tiket belum di-scan atau sudah tidak aktif.');
+    if (error.message === 'TicketInvalid') return sendError(res, 400, 'Tiket belum di scan atau sudah tidak aktif.');
     if (error.message === 'TicketAlreadyHasReservation') return sendError(res, 400, 'Tiket ini sudah memiliki reservasi aktif.');
     if (error.message === 'SlotBusy') return sendError(res, 400, 'Slot parkir sudah terisi atau dibooking orang lain.');
     if (error.message === 'TicketNotFound') return sendError(res, 404, 'Tiket tidak ditemukan.');
@@ -248,7 +248,7 @@ const completeReservation = async (req, res) => {
         linkedReservationId: null
       });
 
-      if (data.userId && !data.userId.startsWith('guest-')) {
+      if (data.userId && !data.userId.startsWith('guest ')) {
         t.update(userRef, { activeTicketId: null });
       }
 
@@ -400,7 +400,7 @@ const swapReservation = async (req, res) => {
 
   } catch (error) {
     if (error.message === 'newSlotBusy') return sendError(res, 400, 'Slot tujuan tidak tersedia atau tidak ditemukan.');
-    if (error.message === 'CannotSwap') return sendError(res, 400, 'Tidak bisa pindah slot setelah check-in.');
+    if (error.message === 'CannotSwap') return sendError(res, 400, 'Tidak bisa pindah slot setelah check in.');
     return sendServerError(res, error);
   }
 };

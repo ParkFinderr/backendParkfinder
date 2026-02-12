@@ -101,7 +101,7 @@ const deleteVehicle = async (req, res) => {
     }
 
     if (userData.vehicles.length <= 1) {
-      return sendError(res, 400, 'Anda tidak dapat menghapus kendaraan utama (satu-satunya).');
+      return sendError(res, 400, 'Anda tidak dapat menghapus kendaraan utama.');
     }
 
     await userRef.update({
