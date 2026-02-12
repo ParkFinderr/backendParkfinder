@@ -9,10 +9,19 @@ services:
     environment:
       - PORT=3000
       - NODE_ENV=development
+      
       - REDIS_HOST=host.docker.internal
       - REDIS_PORT=6379
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/serviceAccountKey.json
+      
+      - GCLOUD_PROJECT=demo-parkfinder
       - STORAGE_BUCKET=demo-parkfinder.appspot.com
+      
+      - FIRESTORE_EMULATOR_HOST=host.docker.internal:8080
+      - FIREBASE_STORAGE_EMULATOR_HOST=host.docker.internal:9199
+
+      - JWT_SECRET=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9... (sesuaikan)
+      - JWT_EXPIRES_IN=1d
+
     volumes:
       - ./serviceAccountKey.json:/app/serviceAccountKey.json
     extra_hosts:
