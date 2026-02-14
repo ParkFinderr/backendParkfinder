@@ -1,4 +1,3 @@
-// src/service/sensorListener.js
 const { redisClient } = require('../config/redis');
 const { db } = require('../config/firebase');
 const ACTIONS = require('../constants/actions');
@@ -50,7 +49,6 @@ const initSensorListener = async () => {
                     }
                     
                     else if (slotData.appStatus === 'booked') {
-                       
                         console.warn(`[ANOMALI] Masuk Slot Booked ${slotName}`);
                         await publishCommand(ACTIONS.ALERT, slotId, 'booked', slotName, 'intruder-warning');
                     }
@@ -60,7 +58,6 @@ const initSensorListener = async () => {
                          if (diffSeconds < 60) {
                              console.warn(`[ANOMALI] Ghost Swap Terdeteksi di ${slotName} (${diffSeconds}s)`);
                              
-                    
                              if (slotData.currentReservationId) {
                                  await db.collection('reservations').doc(slotData.currentReservationId).update({
                                      status: 'completed',
@@ -76,8 +73,23 @@ const initSensorListener = async () => {
                 }
 
                 else if (sensorValue === 0) {
- 
                     console.log(`[INFO] Mobil keluar dari ${slotName}`);
+
+
+                    if (slotData.appStatus === 'occupied') {
+                        
+                        if (!slotData.currentReservationId) {
+                            console.log(`[AUTO RESET] Parkir Liar selesai di ${slotName}. Reset ke Available.`);
+                            
+                            await slotDoc.ref.update({ appStatus: 'available' });
+                            
+                            await publishCommand(ACTIONS.LEAVE, slotId, 'available', slotName, 'unauthorized-leave');
+                        }
+                        
+                        else {
+                            console.log(`[INFO] Menunggu konfirmasi checkout user atau auto checkout cron job untuk ${slotName}.`);
+                        }
+                    }
                 }
 
             } catch (err) {
