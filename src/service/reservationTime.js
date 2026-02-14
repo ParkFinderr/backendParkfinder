@@ -1,46 +1,8 @@
 const cron = require('node-cron');
 const { db } = require('../config/firebase');
-const { redisClient } = require('../config/redis');
-
-
-const broadcastStats = async () => {
-    try {
-        const allSlots = await db.collection('slots').get();
-        let stats = { available: 0, booked: 0, occupied: 0, maintenance: 0 };
-        allSlots.forEach(doc => {
-            const s = doc.data();
-            const status = ['available', 'booked', 'occupied', 'maintenance'].includes(s.appStatus) 
-                ? s.appStatus 
-                : 'available';
-            stats[status]++;
-        });
-        await redisClient.publish('parkfinderStats', JSON.stringify(stats));
-    } catch (err) { console.error('[STATS ERROR CRON]', err); }
-};
-
-const publishCommand = async (action, slotId, status, slotName = null, reason = null) => {
-    try {
-        let name = slotName;
-        if (!name) {
-            const slotDoc = await db.collection('slots').doc(slotId).get();
-            if (slotDoc.exists) name = slotDoc.data().slotName;
-        }
-
-        if (name) {
-            const payload = {
-                action: action,
-                slotId: slotId,
-                slotName: name,
-                status: status,
-                reason: reason
-            };
-            await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
-            console.log(`[REDIS CRON] Sent ${action} for ${name} (Reason: ${reason})`);
-        }
-    } catch (err) {
-        console.error('[REDIS ERROR]', err);
-    }
-};
+const ACTIONS = require('../constants/actions');
+const { publishCommand } = require('../helpers/commandHelper');
+const { broadcastStats } = require('../helpers/statsHelper'); 
 
 const startCronJobs = () => {
   console.log('[CRON] Sistem pemantauan waktu parkir berjalan...');
@@ -48,20 +10,21 @@ const startCronJobs = () => {
   cron.schedule('*/1 * * * *', async () => {
     try {
       const now = new Date();
-      
       const batch = db.batch();
       let hasUpdates = false;
       const redisTasks = [];
 
+      // ==========================================
+      // 1. AUTO CANCEL (Booking Expired 30 Min)
+      // ==========================================
       const cancelLimit = new Date(now.getTime() - 30 * 60000).toISOString(); 
-
       const pendingSnapshot = await db.collection('reservations')
         .where('status', '==', 'pending')
         .where('timestamps.created', '<=', cancelLimit)
         .get();
 
       if (!pendingSnapshot.empty) {
-        console.log(`[AUTO CANCEL] Membatalkan ${pendingSnapshot.size} booking expired.`);
+        console.log(`[AUTO CANCEL] ${pendingSnapshot.size} reservasi expired.`);
         hasUpdates = true;
 
         for (const doc of pendingSnapshot.docs) {
@@ -73,14 +36,13 @@ const startCronJobs = () => {
             currentReservationId: null 
           });
           
-          redisTasks.push(async () => {
-             await publishCommand('cancelSlot', resData.slotId, 'available', null, 'timeout');
-          });
+          redisTasks.push(() => 
+             publishCommand(ACTIONS.CANCEL, resData.slotId, 'available', null, 'timeout')
+          );
         }
       }
 
       const checkoutLimit = new Date(now.getTime() - 2 * 60000).toISOString();
-
       const occupiedSlotsSnapshot = await db.collection('slots')
         .where('appStatus', '==', 'occupied')
         .get();
@@ -90,13 +52,11 @@ const startCronJobs = () => {
           const slotData = slotDoc.data();
           
           if (slotData.sensorStatus === 0 && slotData.lastUpdate <= checkoutLimit) {
-             
              if (slotData.currentReservationId) {
-                 console.log(`[AUTO CHECKOUT] User lupa checkout di ${slotData.slotName}. Menyelesaikan otomatis...`);
+                 console.log(`[AUTO CHECKOUT] ${slotData.slotName}`);
                  hasUpdates = true;
 
-                 const resRef = db.collection('reservations').doc(slotData.currentReservationId);
-                 batch.update(resRef, { 
+                 batch.update(db.collection('reservations').doc(slotData.currentReservationId), { 
                     status: 'completed',
                     'timestamps.completed': new Date().toISOString()
                  });
@@ -106,9 +66,9 @@ const startCronJobs = () => {
                     currentReservationId: null
                  });
   
-                 redisTasks.push(async () => {
-                    await publishCommand('leaveSlot', slotDoc.id, 'available', slotData.slotName, 'auto-checkout');
-                 });
+                 redisTasks.push(() => 
+                    publishCommand(ACTIONS.LEAVE, slotDoc.id, 'available', slotData.slotName, 'auto-checkout')
+                 );
              }
           }
         }
@@ -116,13 +76,13 @@ const startCronJobs = () => {
 
       if (hasUpdates) {
         await batch.commit();
-        await Promise.all(redisTasks.map(task => task()));
+        await Promise.all(redisTasks.map(task => task())); 
         await broadcastStats();
-        console.log('[CRON] Sinkronisasi data selesai.');
+        console.log('[CRON] Sinkronisasi selesai.');
       }
 
     } catch (error) {
-      console.error('Error in Cron Job:', error);
+      console.error('Error cron:', error);
     }
   });
 };
