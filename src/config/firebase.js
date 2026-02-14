@@ -14,9 +14,8 @@ admin.initializeApp({
 const db = admin.firestore();
 const bucket = admin.storage().bucket();
 
-// Log sederhana untuk memastikan koneksi emulator
 if (process.env.FIRESTORE_EMULATOR_HOST) {
-    console.log(`[FIREBASE] 🔥 Connected to Firestore Emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`);
+    console.log(`[FIREBASE] Connected to Firestore Emulator at ${process.env.FIRESTORE_EMULATOR_HOST}`);
 }
 
 module.exports = { admin, db, bucket };
