@@ -58,7 +58,7 @@ const verifyTicket = async (req, res) => {
         return sendError(res, 401, 'Sesi kadaluarsa. Silakan login kembali atau scan sebagai tamu.');
       }
     } else {
-      guestSessionId = `guest ${uuidv4()}`;
+      guestSessionId = `guest-${uuidv4()}`;
     }
 
     const ticketQuery = await db.collection('tickets')

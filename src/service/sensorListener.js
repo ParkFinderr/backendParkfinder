@@ -1,8 +1,8 @@
+// src/service/sensorListener.js
 const { redisClient } = require('../config/redis');
 const { db } = require('../config/firebase');
 const ACTIONS = require('../constants/actions');
 const { publishCommand } = require('../helpers/commandHelper');
-const { broadcastStats } = require('../helpers/statsHelper');
 const CHANNELS = require('../constants/channels'); 
 
 const redisSubscriber = redisClient.duplicate();
@@ -18,7 +18,6 @@ const initSensorListener = async () => {
                 let { slotName, value } = data;
             
                 if (!slotName || value === undefined) return;
-
                 slotName = slotName.trim();
                 const sensorValue = parseInt(value);
 
@@ -27,38 +26,62 @@ const initSensorListener = async () => {
                     .limit(1)
                     .get();
 
-                if (slotQuery.empty) {
-                    console.warn(`[SENSOR WARN] Slot '${slotName}' tidak ditemukan di DB.`);
-                    return;
-                }
-
+                if (slotQuery.empty) return;
                 const slotDoc = slotQuery.docs[0];
                 const slotData = slotDoc.data();
                 const slotId = slotDoc.id;
 
+                if (slotData.sensorStatus === sensorValue) return; 
+
+                const now = new Date();
+                const lastUpdate = new Date(slotData.lastUpdate);
+                
                 await slotDoc.ref.update({ 
                     sensorStatus: sensorValue,
-                    lastUpdate: new Date().toISOString()
+                    lastUpdate: now.toISOString()
                 });
 
                 if (sensorValue === 1) {
                     
                     if (slotData.appStatus === 'available') {
-                        console.warn(`ALERT: Parkir Liar di ${slotName}!`);
-                        
+                        console.warn(`[ANOMALI] Parkir Liar di ${slotName}`);
                         await slotDoc.ref.update({ appStatus: 'occupied' });
                         await publishCommand(ACTIONS.ALERT, slotId, 'occupied', slotName, 'unauthorized');
-                        await broadcastStats();
+                    }
+                    
+                    else if (slotData.appStatus === 'booked') {
+                       
+                        console.warn(`[ANOMALI] Masuk Slot Booked ${slotName}`);
+                        await publishCommand(ACTIONS.ALERT, slotId, 'booked', slotName, 'intruder-warning');
                     }
 
-                    else if (slotData.appStatus === 'booked') {
-                        console.warn(`ALERT: Mobil masuk slot booked ${slotName}`);
-                        await publishCommand(ACTIONS.ALERT, slotId, 'booked', slotName, 'intruder-warning');
+                    else if (slotData.appStatus === 'occupied') {
+                         const diffSeconds = (now - lastUpdate) / 1000;
+                         if (diffSeconds < 60) {
+                             console.warn(`[ANOMALI] Ghost Swap Terdeteksi di ${slotName} (${diffSeconds}s)`);
+                             
+                    
+                             if (slotData.currentReservationId) {
+                                 await db.collection('reservations').doc(slotData.currentReservationId).update({
+                                     status: 'completed',
+                                     'timestamps.completed': now.toISOString(),
+                                     note: 'forced_by_ghost_swap'
+                                 });
+                             }
+                             
+                             await slotDoc.ref.update({ currentReservationId: null });
+                             await publishCommand(ACTIONS.ALERT, slotId, 'occupied', slotName, 'ghost-swap');
+                         }
                     }
                 }
 
+                else if (sensorValue === 0) {
+ 
+                    console.log(`[INFO] Mobil keluar dari ${slotName}`);
+                }
+
             } catch (err) {
-                console.error('[SENSOR PROC ERROR]', err);
+                console.error('[SENSOR ERROR]', err);
             }
         });
 
