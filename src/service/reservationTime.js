@@ -2,17 +2,57 @@ const cron = require('node-cron');
 const { db } = require('../config/firebase');
 const { redisClient } = require('../config/redis');
 
+// [BARU] Fungsi Broadcast Stats (duplikasi dari controller, idealnya di utils terpisah)
+const broadcastStats = async () => {
+    try {
+        const allSlots = await db.collection('slots').get();
+        let stats = { available: 0, booked: 0, occupied: 0, maintenance: 0 };
+        allSlots.forEach(doc => {
+            const s = doc.data();
+            const status = ['available', 'booked', 'occupied', 'maintenance'].includes(s.appStatus) 
+                ? s.appStatus 
+                : 'available';
+            stats[status]++;
+        });
+        await redisClient.publish('parkfinderStats', JSON.stringify(stats));
+    } catch (err) { console.error('[STATS ERROR CRON]', err); }
+};
+
+const publishCommand = async (action, slotId, status, slotName = null, reason = null) => {
+    try {
+        let name = slotName;
+        if (!name) {
+            const slotDoc = await db.collection('slots').doc(slotId).get();
+            if (slotDoc.exists) name = slotDoc.data().slotName;
+        }
+
+        if (name) {
+            const payload = {
+                action: action,
+                slotId: slotId,
+                slotName: name,
+                status: status,
+                reason: reason // [BARU] Tambah reason (timeout/manual)
+            };
+            await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
+            console.log(`[REDIS CRON] Sent ${action} for ${name} (Reason: ${reason})`);
+        }
+    } catch (err) {
+        console.error('[REDIS ERROR]', err);
+    }
+};
+
 const startCronJobs = () => {
   console.log('[CRON] Sistem pemantauan waktu parkir berjalan...');
 
   cron.schedule('*/1 * * * *', async () => {
     try {
       const now = new Date();
+      
       const batch = db.batch();
       let hasUpdates = false;
       const redisTasks = [];
 
-     // auto cancel
       const cancelLimit = new Date(now.getTime() - 30 * 60000).toISOString(); 
 
       const pendingSnapshot = await db.collection('reservations')
@@ -34,12 +74,12 @@ const startCronJobs = () => {
           });
           
           redisTasks.push(async () => {
-             await publishCommand('cancelSlot', resData.slotId, 'available');
+             await publishCommand('cancelSlot', resData.slotId, 'available', null, 'timeout');
           });
         }
       }
 
-      // auto checkout
+
       const checkoutLimit = new Date(now.getTime() - 2 * 60000).toISOString();
 
       const occupiedSlotsSnapshot = await db.collection('slots')
@@ -68,7 +108,7 @@ const startCronJobs = () => {
                  });
   
                  redisTasks.push(async () => {
-                    await publishCommand('leaveSlot', slotDoc.id, 'available', slotData.slotName);
+                    await publishCommand('leaveSlot', slotDoc.id, 'available', slotData.slotName, 'auto-checkout');
                  });
              }
           }
@@ -78,38 +118,14 @@ const startCronJobs = () => {
       if (hasUpdates) {
         await batch.commit();
         await Promise.all(redisTasks.map(task => task()));
+        await broadcastStats();
         console.log('[CRON] Sinkronisasi data selesai.');
       }
 
     } catch (error) {
-      console.error('❌ Error in Cron Job:', error);
+      console.error('Error in Cron Job:', error);
     }
   });
-};
-
-
-const publishCommand = async (action, slotId, status, slotName = null) => {
-    try {
-
-        let name = slotName;
-        if (!name) {
-            const slotDoc = await db.collection('slots').doc(slotId).get();
-            if (slotDoc.exists) name = slotDoc.data().slotName;
-        }
-
-        if (name) {
-            const payload = {
-                action: action,
-                slotId: slotId,
-                slotName: name,
-                status: status
-            };
-            await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
-            console.log(`[REDIS CRON] Sent ${action} for ${name}`);
-        }
-    } catch (err) {
-        console.error('[REDIS ERROR]', err);
-    }
 };
 
 module.exports = { startCronJobs };
