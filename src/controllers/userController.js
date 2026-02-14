@@ -141,9 +141,8 @@ const getAllUsers = async (req, res) => {
         name: data.name,
         role: data.role,
         phoneNumber: data.phoneNumber,
-        vehicles: data.vehicles,
         activeTicketId: data.activeTicketId,
-        registeredAt: data.createdAt 
+        vehicles: data.vehicles
       };
     });
 
@@ -198,7 +197,6 @@ const getUserByIdAdmin = async (req, res) => {
 // admin hapus user
 const deleteUser = async (req, res) => {
   try {
-
     const targetUserId = req.params.id;
     const currentAdminId = req.user.userId;
 
@@ -211,6 +209,16 @@ const deleteUser = async (req, res) => {
 
     if (!doc.exists) {
       return sendError(res, 404, 'User tidak ditemukan.');
+    }
+
+    const userData = doc.data();
+
+    if (userData.activeTicketId) {
+       const ticketDoc = await db.collection('tickets').doc(userData.activeTicketId).get();
+       
+       if (ticketDoc.exists && ticketDoc.data().status === 'claimed') {
+           return sendError(res, 400, 'Gagal menghapus. User ini sedang memiliki tiket parkir aktif.');
+       }
     }
 
     await targetUserRef.delete();
