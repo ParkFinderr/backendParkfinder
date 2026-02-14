@@ -21,7 +21,7 @@ const startCronJobs = () => {
         .get();
 
       if (!pendingSnapshot.empty) {
-        console.log(`[AUTO-CANCEL] Membatalkan ${pendingSnapshot.size} booking expired.`);
+        console.log(`[AUTO CANCEL] Membatalkan ${pendingSnapshot.size} booking expired.`);
         hasUpdates = true;
 
         for (const doc of pendingSnapshot.docs) {
@@ -53,7 +53,7 @@ const startCronJobs = () => {
           if (slotData.sensorStatus === 0 && slotData.lastUpdate <= checkoutLimit) {
              
              if (slotData.currentReservationId) {
-                 console.log(`[AUTO-CHECKOUT] User lupa checkout di ${slotData.slotName}. Menyelesaikan otomatis...`);
+                 console.log(`[AUTO CHECKOUT] User lupa checkout di ${slotData.slotName}. Menyelesaikan otomatis...`);
                  hasUpdates = true;
 
                  const resRef = db.collection('reservations').doc(slotData.currentReservationId);
@@ -87,10 +87,10 @@ const startCronJobs = () => {
   });
 };
 
-// Helper untuk kirim ke Redis (biar kodenya rapi)
+
 const publishCommand = async (action, slotId, status, slotName = null) => {
     try {
-        // Jika slotName belum ada, kita cari dulu (untuk case Auto-Cancel)
+
         let name = slotName;
         if (!name) {
             const slotDoc = await db.collection('slots').doc(slotId).get();
@@ -105,7 +105,7 @@ const publishCommand = async (action, slotId, status, slotName = null) => {
                 status: status
             };
             await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
-            console.log(`[REDIS-CRON] Sent ${action} for ${name}`);
+            console.log(`[REDIS CRON] Sent ${action} for ${name}`);
         }
     } catch (err) {
         console.error('[REDIS ERROR]', err);

@@ -5,6 +5,28 @@ const { sendSuccess, sendError, sendServerError } = require('../utils/responseHe
 const { redisClient } = require('../config/redis');
 
 
+const broadcastStats = async () => {
+    try {
+        const allSlots = await db.collection('slots').get();
+        let stats = { available: 0, booked: 0, occupied: 0, maintenance: 0 };
+        
+        allSlots.forEach(doc => {
+            const s = doc.data();
+            // Pastikan status valid, default ke available jika aneh
+            const status = ['available', 'booked', 'occupied', 'maintenance'].includes(s.appStatus) 
+                ? s.appStatus 
+                : 'available';
+            stats[status]++;
+        });
+
+        // Kirim ke channel khusus stats
+        await redisClient.publish('parkfinderStats', JSON.stringify(stats));
+        console.log('[STATS] Broadcasted:', stats);
+    } catch (err) {
+        console.error('[STATS ERROR]', err);
+    }
+};
+
 // membuat reservasi baru
 const createReservation = async (req, res) => {
   try {
@@ -36,7 +58,7 @@ const createReservation = async (req, res) => {
       let finalPlateNumber = plateNumber || null;
       const claimedBy = ticketData.claimedBy;
 
-      if (claimedBy && !claimedBy.startsWith('guest ')) {
+      if (claimedBy && !claimedBy.startsWith('guest-')) {
         const userRef = db.collection('users').doc(claimedBy);
         const userDoc = await t.get(userRef);
 
@@ -84,12 +106,16 @@ const createReservation = async (req, res) => {
         linkedReservationId: newReservationRef.id
       });
 
+      const expiryDate = new Date();
+      expiryDate.setMinutes(expiryDate.getMinutes() + 30);
+
       // redis publish
       const commandPayload = {
         action: 'reserveSlot',
         slotId: slotId,
         slotName: slotData.slotName,
-        status: 'booked'
+        status: 'booked',
+        expiryTime: expiryDate.toISOString()
       };
 
       try {
@@ -106,16 +132,19 @@ const createReservation = async (req, res) => {
         plateNumber: finalPlateNumber,
         name: finalName,
         ticketId: ticketId,
-        qrCode: ticketData.qrCode
+        qrCode: ticketData.qrCode,
+        expiryTime: expiryDate.toISOString()
       };
     });
+
+    broadcastStats();
 
     return sendSuccess(res, 201, 'Booking berhasil. Silakan menuju slot parkir.', successResponseData);
 
   } catch (error) {
     if (error.message === 'PlateNumberRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Plat Nomor kendaraan.');
     if (error.message === 'NameRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Nama Pemesan.');
-    if (error.message === 'TicketInvalid') return sendError(res, 400, 'Tiket belum di scan atau sudah tidak aktif.');
+    if (error.message === 'TicketInvalid') return sendError(res, 400, 'Tiket belum di-scan atau sudah tidak aktif.');
     if (error.message === 'TicketAlreadyHasReservation') return sendError(res, 400, 'Tiket ini sudah memiliki reservasi aktif.');
     if (error.message === 'SlotBusy') return sendError(res, 400, 'Slot parkir sudah terisi atau dibooking orang lain.');
     if (error.message === 'TicketNotFound') return sendError(res, 404, 'Tiket tidak ditemukan.');
@@ -139,7 +168,7 @@ const getReservationById = async (req, res) => {
   }
 };
 
-// histori user reverrvasi
+// histori user 
 const getUserReservations = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -183,7 +212,6 @@ const arriveReservation = async (req, res) => {
         'timestamps.arrived': new Date().toISOString()
       });
 
-      
       t.update(slotRef, { appStatus: 'occupied' });
 
       const commandPayload = {
@@ -201,6 +229,7 @@ const arriveReservation = async (req, res) => {
       }
     });
 
+    broadcastStats();
     return sendSuccess(res, 200, 'Kedatangan dikonfirmasi. Selamat parkir.');
 
   } catch (error) {
@@ -248,7 +277,7 @@ const completeReservation = async (req, res) => {
         linkedReservationId: null
       });
 
-      if (data.userId && !data.userId.startsWith('guest ')) {
+      if (data.userId && !data.userId.startsWith('guest-')) {
         t.update(userRef, { activeTicketId: null });
       }
 
@@ -267,6 +296,7 @@ const completeReservation = async (req, res) => {
       }
     });
 
+    broadcastStats(); 
     return sendSuccess(res, 200, 'Parkir selesai. Terima kasih!');
 
   } catch (error) {
@@ -310,7 +340,8 @@ const cancelReservation = async (req, res) => {
         action: 'cancelSlot',
         slotId: data.slotId,
         slotName: slotDoc.data().slotName,
-        status: 'available'
+        status: 'available',
+        reason: 'manual'
       };
 
       try {
@@ -321,6 +352,7 @@ const cancelReservation = async (req, res) => {
       }
     });
 
+    broadcastStats();
     return sendSuccess(res, 200, 'Reservasi berhasil dibatalkan.');
   } catch (error) {
     if (error.message === 'CannotCancel') return sendError(res, 400, 'Tidak bisa membatalkan reservasi yang sudah aktif atau selesai.');
@@ -374,13 +406,17 @@ const swapReservation = async (req, res) => {
         currentReservationId: id
       });
 
+      const expiryDate = new Date();
+      expiryDate.setMinutes(expiryDate.getMinutes() + 30);
+
       // redis publish
       try {
         await redisClient.publish('parkfinderCommands', JSON.stringify({
           action: 'cancelSlot',
           slotId: data.slotId,
           slotName: oldSlotDoc.data().slotName,
-          status: 'available'
+          status: 'available',
+          reason: 'swap'
         }));
 
         // redis publis
@@ -388,19 +424,21 @@ const swapReservation = async (req, res) => {
           action: 'reserveSlot',
           slotId: newSlotId,
           slotName: newSlotDoc.data().slotName,
-          status: 'booked'
+          status: 'booked',
+          expiryTime: expiryDate.toISOString() // [BARU]
         }));
         console.log(`[REDIS] Swapped from ${oldSlotDoc.data().slotName} to ${newSlotDoc.data().slotName}`);
       } catch (redisError) {
         console.error('[REDIS ERROR]', redisError);
       }
     });
-
+    
+    broadcastStats();
     return sendSuccess(res, 200, 'Berhasil pindah slot.');
 
   } catch (error) {
     if (error.message === 'newSlotBusy') return sendError(res, 400, 'Slot tujuan tidak tersedia atau tidak ditemukan.');
-    if (error.message === 'CannotSwap') return sendError(res, 400, 'Tidak bisa pindah slot setelah check in.');
+    if (error.message === 'CannotSwap') return sendError(res, 400, 'Tidak bisa pindah slot setelah check-in.');
     return sendServerError(res, error);
   }
 };
