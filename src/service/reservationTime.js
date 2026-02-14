@@ -14,9 +14,6 @@ const startCronJobs = () => {
       let hasUpdates = false;
       const redisTasks = [];
 
-      // ==========================================
-      // 1. AUTO CANCEL (Booking Expired 30 Min)
-      // ==========================================
       const cancelLimit = new Date(now.getTime() - 30 * 60000).toISOString(); 
       const pendingSnapshot = await db.collection('reservations')
         .where('status', '==', 'pending')

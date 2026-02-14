@@ -16,7 +16,6 @@ const initSensorListener = async () => {
             try {
                 const data = JSON.parse(message);
                 let { slotName, value } = data;
-
             
                 if (!slotName || value === undefined) return;
 
@@ -42,7 +41,6 @@ const initSensorListener = async () => {
                     lastUpdate: new Date().toISOString()
                 });
 
-
                 if (sensorValue === 1) {
                     
                     if (slotData.appStatus === 'available') {
@@ -54,7 +52,7 @@ const initSensorListener = async () => {
                     }
 
                     else if (slotData.appStatus === 'booked') {
-                        console.warn(`⚠️ ALERT: Mobil masuk slot booked ${slotName}`);
+                        console.warn(`ALERT: Mobil masuk slot booked ${slotName}`);
                         await publishCommand(ACTIONS.ALERT, slotId, 'booked', slotName, 'intruder-warning');
                     }
                 }
