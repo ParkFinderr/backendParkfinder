@@ -28,10 +28,23 @@ const startCronJobs = () => {
           const resData = doc.data();
           
           batch.update(db.collection('reservations').doc(doc.id), { status: 'cancelled' });
+          
           batch.update(db.collection('slots').doc(resData.slotId), { 
             appStatus: 'available',
             currentReservationId: null 
           });
+
+          if (resData.ticketId) {
+             batch.update(db.collection('tickets').doc(resData.ticketId), { 
+                status: 'closed', 
+                linkedReservationId: null 
+             });
+          }
+
+          const isGuest = resData.userId && (resData.userId.startsWith('guest') || resData.userId.includes('guest'));
+          if (resData.userId && !isGuest) {
+             batch.update(db.collection('users').doc(resData.userId), { activeTicketId: null });
+          }
           
           redisTasks.push(() => 
              publishCommand(ACTIONS.CANCEL, resData.slotId, 'available', null, 'timeout')
@@ -50,22 +63,42 @@ const startCronJobs = () => {
           
           if (slotData.sensorStatus === 0 && slotData.lastUpdate <= checkoutLimit) {
              if (slotData.currentReservationId) {
-                 console.log(`[AUTO CHECKOUT] ${slotData.slotName}`);
-                 hasUpdates = true;
+                 
+                 const resDoc = await db.collection('reservations').doc(slotData.currentReservationId).get();
+                 
+                 if (resDoc.exists) {
+                     const resData = resDoc.data(); // DEFINISI resData
+                     
+                     console.log(`[AUTO CHECKOUT] ${slotData.slotName} (User: ${resData.name})`);
+                     hasUpdates = true;
 
-                 batch.update(db.collection('reservations').doc(slotData.currentReservationId), { 
-                    status: 'completed',
-                    'timestamps.completed': new Date().toISOString()
-                 });
+                     batch.update(db.collection('reservations').doc(slotData.currentReservationId), { 
+                        status: 'completed',
+                        'timestamps.completed': new Date().toISOString(),
+                        note: 'auto_checkout_system'
+                     });
 
-                 batch.update(slotDoc.ref, { 
-                    appStatus: 'available',
-                    currentReservationId: null
-                 });
-  
-                 redisTasks.push(() => 
-                    publishCommand(ACTIONS.LEAVE, slotDoc.id, 'available', slotData.slotName, 'auto-checkout')
-                 );
+                     batch.update(slotDoc.ref, { 
+                        appStatus: 'available',
+                        currentReservationId: null
+                     });
+
+                     if (resData.ticketId) {
+                        batch.update(db.collection('tickets').doc(resData.ticketId), { 
+                            status: 'closed', 
+                            linkedReservationId: null 
+                        });
+                     }
+
+                     const isGuest = resData.userId && (resData.userId.startsWith('guest') || resData.userId.includes('guest'));
+                     if (resData.userId && !isGuest) {
+                        batch.update(db.collection('users').doc(resData.userId), { activeTicketId: null });
+                     }
+      
+                     redisTasks.push(() => 
+                        publishCommand(ACTIONS.LEAVE, slotDoc.id, 'available', slotData.slotName, 'auto checkout')
+                     );
+                 }
              }
           }
         }

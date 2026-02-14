@@ -314,6 +314,7 @@ const cancelReservation = async (req, res) => {
     const { id } = req.params;
 
     await db.runTransaction(async (t) => {
+
       const resRef = db.collection('reservations').doc(id);
       const resDoc = await t.get(resRef);
 
@@ -324,7 +325,17 @@ const cancelReservation = async (req, res) => {
 
       const slotRef = db.collection('slots').doc(data.slotId);
       const ticketRef = db.collection('tickets').doc(data.ticketId);
+      
       const slotDoc = await t.get(slotRef);
+
+      const isGuest = data.userId && (data.userId.startsWith('guest') || data.userId.includes('guest'));
+      let userRef = null;
+      let userDoc = null;
+
+      if (data.userId && !isGuest) {
+        userRef = db.collection('users').doc(data.userId);
+        userDoc = await t.get(userRef); 
+      }
 
       t.update(resRef, { status: 'cancelled' });
 
@@ -333,20 +344,26 @@ const cancelReservation = async (req, res) => {
         currentReservationId: null
       });
 
-      t.update(ticketRef, { linkedReservationId: null });
+      t.update(ticketRef, { 
+          status: 'closed',
+          linkedReservationId: null 
+      });
 
-      // redis
+      if (userRef && userDoc && userDoc.exists) {
+          t.update(userRef, { activeTicketId: null });
+      }
+
       const commandPayload = {
         action: 'cancelSlot',
         slotId: data.slotId,
-        slotName: slotDoc.data().slotName,
+        slotName: slotDoc.exists ? slotDoc.data().slotName : 'UNKNOWN',
         status: 'available',
         reason: 'manual'
       };
 
       try {
         await redisClient.publish('parkfinderCommands', JSON.stringify(commandPayload));
-        console.log(`[REDIS] Published cancelSlot for ${slotDoc.data().slotName}`);
+        console.log(`[REDIS] Published cancelSlot for ${commandPayload.slotName}`);
       } catch (redisError) {
         console.error('[REDIS ERROR]', redisError);
       }
@@ -356,6 +373,7 @@ const cancelReservation = async (req, res) => {
     return sendSuccess(res, 200, 'Reservasi berhasil dibatalkan.');
   } catch (error) {
     if (error.message === 'CannotCancel') return sendError(res, 400, 'Tidak bisa membatalkan reservasi yang sudah aktif atau selesai.');
+    if (error.message === 'ReservationNotFound') return sendError(res, 404, 'Reservasi tidak ditemukan.');
     return sendServerError(res, error);
   }
 };
