@@ -2,7 +2,7 @@ const cron = require('node-cron');
 const { db } = require('../config/firebase');
 const { redisClient } = require('../config/redis');
 
-// [BARU] Fungsi Broadcast Stats (duplikasi dari controller, idealnya di utils terpisah)
+
 const broadcastStats = async () => {
     try {
         const allSlots = await db.collection('slots').get();
@@ -32,7 +32,7 @@ const publishCommand = async (action, slotId, status, slotName = null, reason = 
                 slotId: slotId,
                 slotName: name,
                 status: status,
-                reason: reason // [BARU] Tambah reason (timeout/manual)
+                reason: reason
             };
             await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
             console.log(`[REDIS CRON] Sent ${action} for ${name} (Reason: ${reason})`);
@@ -78,7 +78,6 @@ const startCronJobs = () => {
           });
         }
       }
-
 
       const checkoutLimit = new Date(now.getTime() - 2 * 60000).toISOString();
 

@@ -377,6 +377,14 @@ const swapReservation = async (req, res) => {
 
       if (data.status !== 'pending') throw new Error('CannotSwap');
 
+      const createdTime = new Date(data.timestamps.created);
+      const originalExpiryTime = new Date(createdTime.getTime() + 30 * 60000); // Created + 30 Menit
+      const now = new Date();
+
+      if (now > originalExpiryTime) {
+          throw new Error('BookingExpired');
+      }
+
       const newSlotRef = db.collection('slots').doc(newSlotId);
       const newSlotDoc = await t.get(newSlotRef);
       if (!newSlotDoc.exists || newSlotDoc.data().appStatus !== 'available') {
@@ -406,11 +414,9 @@ const swapReservation = async (req, res) => {
         currentReservationId: id
       });
 
-      const expiryDate = new Date();
-      expiryDate.setMinutes(expiryDate.getMinutes() + 30);
-
       // redis publish
       try {
+
         await redisClient.publish('parkfinderCommands', JSON.stringify({
           action: 'cancelSlot',
           slotId: data.slotId,
@@ -419,26 +425,27 @@ const swapReservation = async (req, res) => {
           reason: 'swap'
         }));
 
-        // redis publis
         await redisClient.publish('parkfinderCommands', JSON.stringify({
           action: 'reserveSlot',
           slotId: newSlotId,
           slotName: newSlotDoc.data().slotName,
           status: 'booked',
-          expiryTime: expiryDate.toISOString() // [BARU]
+          expiryTime: originalExpiryTime.toISOString() 
         }));
-        console.log(`[REDIS] Swapped from ${oldSlotDoc.data().slotName} to ${newSlotDoc.data().slotName}`);
+        
+        console.log(`[REDIS] Swapped from ${oldSlotDoc.data().slotName} to ${newSlotDoc.data().slotName}. Expiry remains: ${originalExpiryTime.toISOString()}`);
       } catch (redisError) {
         console.error('[REDIS ERROR]', redisError);
       }
     });
     
-    broadcastStats();
+    broadcastStats(); 
     return sendSuccess(res, 200, 'Berhasil pindah slot.');
 
   } catch (error) {
     if (error.message === 'newSlotBusy') return sendError(res, 400, 'Slot tujuan tidak tersedia atau tidak ditemukan.');
     if (error.message === 'CannotSwap') return sendError(res, 400, 'Tidak bisa pindah slot setelah check-in.');
+    if (error.message === 'BookingExpired') return sendError(res, 400, 'Waktu booking Anda sudah habis, tidak bisa pindah slot.');
     return sendServerError(res, error);
   }
 };
