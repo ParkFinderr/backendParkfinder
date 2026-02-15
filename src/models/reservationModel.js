@@ -1,3 +1,4 @@
+// src/models/reservationModel.js
 const Joi = require('joi');
 
 // skema reservasi
@@ -15,7 +16,8 @@ const createReservationSchema = Joi.object({
   }),
   name: Joi.string().optional().messages({
     'string.empty': 'Nama pemesan tidak boleh kosong.'
-  })
+  }),
+  areaId: Joi.string().optional()
 });
 
 // skema pindah reservasi

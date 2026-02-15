@@ -1,3 +1,4 @@
+// src/controllers/gateController.js
 const { db } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
@@ -11,6 +12,11 @@ const generateTicket = async (req, res) => {
     const { error, value } = generateTicketSchema.validate(req.body);
     if (error) return sendError(res, 400, error.details[0].message);
 
+    const areaDoc = await db.collection('areas').doc(value.areaId).get();
+    if (!areaDoc.exists) {
+        return sendError(res, 404, 'Area ID tidak ditemukan.');
+    }
+
     const timestamp = Date.now();
     const uniqueId = uuidv4().split('-')[0]; 
     const qrCodeString = `PF-${timestamp}-${uniqueId}`;
@@ -18,6 +24,7 @@ const generateTicket = async (req, res) => {
     const newTicket = {
       qrCode: qrCodeString,
       vehicleType: value.vehicleType,
+      areaId: value.areaId,
       generatedAt: new Date().toISOString(),
       status: 'active', 
       claimedBy: null,
@@ -97,15 +104,23 @@ const verifyTicket = async (req, res) => {
       }
     });
 
+    let areaName = 'Unknown Area';
+    if (ticketData.areaId) {
+        const areaInfo = await db.collection('areas').doc(ticketData.areaId).get();
+        if (areaInfo.exists) areaName = areaInfo.data().name;
+    }
+
     const responseData = {
       ticketId: ticketDoc.id,
       vehicleType: ticketData.vehicleType,
+      areaId: ticketData.areaId, 
+      areaName: areaName,     
       userType: userId ? 'registered' : 'guest',
       bindingId: userId ? userId : guestSessionId,
       status: 'claimed'
     };
 
-    return sendSuccess(res, 200, 'Tiket berhasil diverifikasi. Selamat datang!', responseData);
+    return sendSuccess(res, 200, `Tiket valid. Selamat datang di ${areaName}!`, responseData);
 
   } catch (error) {
     return sendServerError(res, error);

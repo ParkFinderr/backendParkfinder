@@ -4,6 +4,11 @@ const Joi = require('joi');
 const generateTicketSchema = Joi.object({
   vehicleType: Joi.string().valid('mobil', 'motor').default('mobil').messages({
     'any.only': 'Tipe kendaraan hanya boleh mobil atau motor.'
+  }),
+
+  areaId: Joi.string().required().messages({
+    'string.empty': 'Area ID wajib diisi saat mencetak tiket.',
+    'any.required': 'Area ID wajib disertakan.'
   })
 });
 

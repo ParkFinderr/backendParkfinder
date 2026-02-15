@@ -1,3 +1,4 @@
+// src/controllers/reservationController.js
 const admin = require('firebase-admin');
 const { db } = require('../config/firebase');
 const { createReservationSchema, swapReservationSchema } = require('../models/reservationModel');
@@ -12,14 +13,12 @@ const broadcastStats = async () => {
         
         allSlots.forEach(doc => {
             const s = doc.data();
-            // Pastikan status valid, default ke available jika aneh
             const status = ['available', 'booked', 'occupied', 'maintenance'].includes(s.appStatus) 
                 ? s.appStatus 
                 : 'available';
             stats[status]++;
         });
 
-        // Kirim ke channel khusus stats
         await redisClient.publish('parkfinderStats', JSON.stringify(stats));
         console.log('[STATS] Broadcasted:', stats);
     } catch (err) {
@@ -52,6 +51,10 @@ const createReservation = async (req, res) => {
       if (!slotDoc.exists) throw new Error('SlotNotFound');
       const slotData = slotDoc.data();
 
+      if (ticketData.areaId !== slotData.areaId) {
+          throw new Error('CrossAreaBookingNotAllowed');
+      }
+
       if (slotData.appStatus !== 'available') throw new Error('SlotBusy');
 
       let finalName = 'Tamu';
@@ -83,6 +86,7 @@ const createReservation = async (req, res) => {
         ticketId: ticketId,
         userId: claimedBy,
         slotId: slotId,
+        areaId: slotData.areaId,
         slotName: slotData.slotName,
         name: finalName,
         plateNumber: finalPlateNumber,
@@ -115,7 +119,8 @@ const createReservation = async (req, res) => {
         slotId: slotId,
         slotName: slotData.slotName,
         status: 'booked',
-        expiryTime: expiryDate.toISOString()
+        expiryTime: expiryDate.toISOString(),
+        areaId: slotData.areaId 
       };
 
       try {
@@ -129,6 +134,7 @@ const createReservation = async (req, res) => {
         reservationId: newReservationRef.id,
         status: 'pending',
         slotName: slotData.slotName,
+        areaId: slotData.areaId,
         plateNumber: finalPlateNumber,
         name: finalName,
         ticketId: ticketId,
@@ -142,6 +148,7 @@ const createReservation = async (req, res) => {
     return sendSuccess(res, 201, 'Booking berhasil. Silakan menuju slot parkir.', successResponseData);
 
   } catch (error) {
+    if (error.message === 'CrossAreaBookingNotAllowed') return sendError(res, 403, 'Tiket Anda tidak berlaku untuk area parkir ini.');
     if (error.message === 'PlateNumberRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Plat Nomor kendaraan.');
     if (error.message === 'NameRequiredForGuest') return sendError(res, 400, 'Tamu wajib mengisi Nama Pemesan.');
     if (error.message === 'TicketInvalid') return sendError(res, 400, 'Tiket belum di-scan atau sudah tidak aktif.');
@@ -218,7 +225,8 @@ const arriveReservation = async (req, res) => {
         action: 'occupySlot',
         slotId: data.slotId,
         slotName: slotData.slotName,
-        status: 'occupied'
+        status: 'occupied',
+        areaId: slotData.areaId
       };
 
       try {
@@ -257,10 +265,18 @@ const completeReservation = async (req, res) => {
 
       const slotRef = db.collection('slots').doc(data.slotId);
       const ticketRef = db.collection('tickets').doc(data.ticketId);
-      const userRef = db.collection('users').doc(data.userId);
-
+      
       const slotDoc = await t.get(slotRef);
       if (!slotDoc.exists) throw new Error('SlotNotFound');
+
+      const isGuest = data.userId && (data.userId.startsWith('guest') || data.userId.includes('guest'));
+      let userRef = null;
+      let userDoc = null;
+
+      if (data.userId && !isGuest) {
+        userRef = db.collection('users').doc(data.userId);
+        userDoc = await t.get(userRef); // Baca disini
+      }
 
       t.update(resRef, {
         status: 'completed',
@@ -277,7 +293,7 @@ const completeReservation = async (req, res) => {
         linkedReservationId: null
       });
 
-      if (data.userId && !data.userId.startsWith('guest-')) {
+      if (userRef && userDoc && userDoc.exists) {
         t.update(userRef, { activeTicketId: null });
       }
 
@@ -285,7 +301,8 @@ const completeReservation = async (req, res) => {
         action: 'leaveSlot',
         slotId: data.slotId,
         slotName: slotDoc.data().slotName,
-        status: 'available'
+        status: 'available',
+        areaId: data.areaId
       };
 
       try {
@@ -358,7 +375,8 @@ const cancelReservation = async (req, res) => {
         slotId: data.slotId,
         slotName: slotDoc.exists ? slotDoc.data().slotName : 'UNKNOWN',
         status: 'available',
-        reason: 'manual'
+        reason: 'manual',
+        areaId: data.areaId
       };
 
       try {
@@ -396,7 +414,7 @@ const swapReservation = async (req, res) => {
       if (data.status !== 'pending') throw new Error('CannotSwap');
 
       const createdTime = new Date(data.timestamps.created);
-      const originalExpiryTime = new Date(createdTime.getTime() + 30 * 60000); // Created + 30 Menit
+      const originalExpiryTime = new Date(createdTime.getTime() + 30 * 60000);
       const now = new Date();
 
       if (now > originalExpiryTime) {
@@ -411,6 +429,10 @@ const swapReservation = async (req, res) => {
 
       const oldSlotRef = db.collection('slots').doc(data.slotId);
       const oldSlotDoc = await t.get(oldSlotRef);
+
+      if (oldSlotDoc.data().areaId !== newSlotDoc.data().areaId) {
+          throw new Error('CrossAreaSwapNotAllowed');
+      }
 
       t.update(resRef, {
         slotId: newSlotId,
@@ -440,7 +462,8 @@ const swapReservation = async (req, res) => {
           slotId: data.slotId,
           slotName: oldSlotDoc.data().slotName,
           status: 'available',
-          reason: 'swap'
+          reason: 'swap',
+          areaId: data.areaId
         }));
 
         await redisClient.publish('parkfinderCommands', JSON.stringify({
@@ -448,7 +471,8 @@ const swapReservation = async (req, res) => {
           slotId: newSlotId,
           slotName: newSlotDoc.data().slotName,
           status: 'booked',
-          expiryTime: originalExpiryTime.toISOString() 
+          expiryTime: originalExpiryTime.toISOString(),
+          areaId: data.areaId 
         }));
         
         console.log(`[REDIS] Swapped from ${oldSlotDoc.data().slotName} to ${newSlotDoc.data().slotName}. Expiry remains: ${originalExpiryTime.toISOString()}`);
@@ -461,6 +485,7 @@ const swapReservation = async (req, res) => {
     return sendSuccess(res, 200, 'Berhasil pindah slot.');
 
   } catch (error) {
+    if (error.message === 'CrossAreaSwapNotAllowed') return sendError(res, 403, 'Anda hanya bisa pindah ke slot di area yang sama.');
     if (error.message === 'newSlotBusy') return sendError(res, 400, 'Slot tujuan tidak tersedia atau tidak ditemukan.');
     if (error.message === 'CannotSwap') return sendError(res, 400, 'Tidak bisa pindah slot setelah check-in.');
     if (error.message === 'BookingExpired') return sendError(res, 400, 'Waktu booking Anda sudah habis, tidak bisa pindah slot.');
