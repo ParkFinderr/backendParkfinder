@@ -4,27 +4,7 @@ const { db } = require('../config/firebase');
 const { createReservationSchema, swapReservationSchema } = require('../models/reservationModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
 const { redisClient } = require('../config/redis');
-
-
-const broadcastStats = async () => {
-    try {
-        const allSlots = await db.collection('slots').get();
-        let stats = { available: 0, booked: 0, occupied: 0, maintenance: 0 };
-        
-        allSlots.forEach(doc => {
-            const s = doc.data();
-            const status = ['available', 'booked', 'occupied', 'maintenance'].includes(s.appStatus) 
-                ? s.appStatus 
-                : 'available';
-            stats[status]++;
-        });
-
-        await redisClient.publish('parkfinderStats', JSON.stringify(stats));
-        console.log('[STATS] Broadcasted:', stats);
-    } catch (err) {
-        console.error('[STATS ERROR]', err);
-    }
-};
+const { broadcastStats } = require('../helpers/statsHelper'); 
 
 // membuat reservasi baru
 const createReservation = async (req, res) => {
@@ -34,6 +14,7 @@ const createReservation = async (req, res) => {
 
     const { ticketId, slotId, plateNumber, name } = value;
     let successResponseData = null;
+    let areaIdForStats = null;
 
     await db.runTransaction(async (t) => {
       const ticketRef = db.collection('tickets').doc(ticketId);
@@ -50,6 +31,8 @@ const createReservation = async (req, res) => {
 
       if (!slotDoc.exists) throw new Error('SlotNotFound');
       const slotData = slotDoc.data();
+      
+      areaIdForStats = slotData.areaId; // Simpan Area ID
 
       if (ticketData.areaId !== slotData.areaId) {
           throw new Error('CrossAreaBookingNotAllowed');
@@ -143,7 +126,9 @@ const createReservation = async (req, res) => {
       };
     });
 
-    broadcastStats();
+    if (areaIdForStats) {
+        broadcastStats(areaIdForStats);
+    }
 
     return sendSuccess(res, 201, 'Booking berhasil. Silakan menuju slot parkir.', successResponseData);
 
@@ -197,6 +182,7 @@ const getUserReservations = async (req, res) => {
 const arriveReservation = async (req, res) => {
   try {
     const { id } = req.params;
+    let areaIdForStats = null;
 
     await db.runTransaction(async (t) => {
       const resRef = db.collection('reservations').doc(id);
@@ -209,6 +195,8 @@ const arriveReservation = async (req, res) => {
       const slotRef = db.collection('slots').doc(data.slotId);
       const slotDoc = await t.get(slotRef);
       const slotData = slotDoc.data();
+      
+      areaIdForStats = slotData.areaId;
 
       if (slotData.sensorStatus !== 1) {
          throw new Error('SensorNotDetected');
@@ -237,7 +225,8 @@ const arriveReservation = async (req, res) => {
       }
     });
 
-    broadcastStats();
+    if (areaIdForStats) broadcastStats(areaIdForStats);
+    
     return sendSuccess(res, 200, 'Kedatangan dikonfirmasi. Selamat parkir.');
 
   } catch (error) {
@@ -254,6 +243,7 @@ const arriveReservation = async (req, res) => {
 const completeReservation = async (req, res) => {
   try {
     const { id } = req.params;
+    let areaIdForStats = null;
 
     await db.runTransaction(async (t) => {
       const resRef = db.collection('reservations').doc(id);
@@ -268,6 +258,8 @@ const completeReservation = async (req, res) => {
       
       const slotDoc = await t.get(slotRef);
       if (!slotDoc.exists) throw new Error('SlotNotFound');
+      
+      areaIdForStats = slotDoc.data().areaId;
 
       const isGuest = data.userId && (data.userId.startsWith('guest') || data.userId.includes('guest'));
       let userRef = null;
@@ -275,7 +267,7 @@ const completeReservation = async (req, res) => {
 
       if (data.userId && !isGuest) {
         userRef = db.collection('users').doc(data.userId);
-        userDoc = await t.get(userRef); // Baca disini
+        userDoc = await t.get(userRef); 
       }
 
       t.update(resRef, {
@@ -313,7 +305,8 @@ const completeReservation = async (req, res) => {
       }
     });
 
-    broadcastStats(); 
+    if (areaIdForStats) broadcastStats(areaIdForStats);
+
     return sendSuccess(res, 200, 'Parkir selesai. Terima kasih!');
 
   } catch (error) {
@@ -329,6 +322,7 @@ const completeReservation = async (req, res) => {
 const cancelReservation = async (req, res) => {
   try {
     const { id } = req.params;
+    let areaIdForStats = null;
 
     await db.runTransaction(async (t) => {
 
@@ -344,6 +338,7 @@ const cancelReservation = async (req, res) => {
       const ticketRef = db.collection('tickets').doc(data.ticketId);
       
       const slotDoc = await t.get(slotRef);
+      if (slotDoc.exists) areaIdForStats = slotDoc.data().areaId;
 
       const isGuest = data.userId && (data.userId.startsWith('guest') || data.userId.includes('guest'));
       let userRef = null;
@@ -387,7 +382,8 @@ const cancelReservation = async (req, res) => {
       }
     });
 
-    broadcastStats();
+    if (areaIdForStats) broadcastStats(areaIdForStats);
+
     return sendSuccess(res, 200, 'Reservasi berhasil dibatalkan.');
   } catch (error) {
     if (error.message === 'CannotCancel') return sendError(res, 400, 'Tidak bisa membatalkan reservasi yang sudah aktif atau selesai.');
@@ -404,6 +400,7 @@ const swapReservation = async (req, res) => {
     if (error) return sendError(res, 400, error.details[0].message);
 
     const { newSlotId } = value;
+    let areaIdForStats = null;
 
     await db.runTransaction(async (t) => {
       const resRef = db.collection('reservations').doc(id);
@@ -429,6 +426,8 @@ const swapReservation = async (req, res) => {
 
       const oldSlotRef = db.collection('slots').doc(data.slotId);
       const oldSlotDoc = await t.get(oldSlotRef);
+      
+      areaIdForStats = oldSlotDoc.data().areaId;
 
       if (oldSlotDoc.data().areaId !== newSlotDoc.data().areaId) {
           throw new Error('CrossAreaSwapNotAllowed');
@@ -481,7 +480,8 @@ const swapReservation = async (req, res) => {
       }
     });
     
-    broadcastStats(); 
+    if (areaIdForStats) broadcastStats(areaIdForStats);
+
     return sendSuccess(res, 200, 'Berhasil pindah slot.');
 
   } catch (error) {
