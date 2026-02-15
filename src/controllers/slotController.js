@@ -1,8 +1,16 @@
+// src/controllers/slotController.js
 const admin = require('firebase-admin'); // Butuh ini untuk FieldValue
 const { db } = require('../config/firebase');
 const { createSlotSchema, updateSlotSchema } = require('../models/slotModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
 const { redisClient } = require('../config/redis');
+
+// Helper: Cek Kepemilikan Area (Multi-Tenant)
+const checkAreaAccess = (user, targetAreaId) => {
+  if (!user.managedAreaId) return true;
+  if (user.managedAreaId === targetAreaId) return true;
+  return false;
+};
 
 // menambahkan slot parkir baru
 const addSlot = async (req, res) => {
@@ -11,6 +19,10 @@ const addSlot = async (req, res) => {
     const { error, value } = createSlotSchema.validate(req.body);
     if (error) {
       return sendError(res, 400, error.details[0].message);
+    }
+
+    if (!checkAreaAccess(req.user, value.areaId)) {
+        return sendError(res, 403, 'Anda tidak berhak menambah slot di area ini.');
     }
 
     const areaRef = db.collection('areas').doc(value.areaId);
@@ -122,13 +134,19 @@ const updateSlot = async (req, res) => {
 
     if (!doc.exists) return sendError(res, 404, 'Slot not found');
 
+    const slotData = doc.data();
+
+    if (!checkAreaAccess(req.user, slotData.areaId)) {
+        return sendError(res, 403, 'Anda tidak berhak mengedit slot di area ini.');
+    }
+
     await slotRef.update({ 
       ...value,
       lastUpdate: new Date().toISOString() 
     });
 
     if (value.appStatus) {
-        const slotName = doc.data().slotName;
+        const slotName = slotData.slotName;
         let action = null;
 
         if (value.appStatus === 'maintenance') {
@@ -142,7 +160,8 @@ const updateSlot = async (req, res) => {
                 action: action,
                 slotId: id,
                 slotName: slotName,
-                status: value.appStatus
+                status: value.appStatus,
+                areaId: slotData.areaId
             };
             await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
         }
@@ -168,6 +187,10 @@ const deleteSlot = async (req, res) => {
 
       const slotData = doc.data();
 
+      if (!checkAreaAccess(req.user, slotData.areaId)) {
+         throw new Error('ForbiddenAreaAccess');
+      }
+
       if (slotData.appStatus === 'occupied' || slotData.appStatus === 'booked') {
         throw new Error('SlotBusy');
       }
@@ -185,6 +208,7 @@ const deleteSlot = async (req, res) => {
 
   } catch (error) {
     if (error.message === 'SlotNotFound') return sendError(res, 404, 'Slot tidak ditemukan.');
+    if (error.message === 'ForbiddenAreaAccess') return sendError(res, 403, 'Anda tidak berhak menghapus slot dari area ini.');
     if (error.message === 'SlotBusy') return sendError(res, 400, 'Gagal menghapus. Slot sedang digunakan atau direservasi.');
     return sendServerError(res, error);
   }

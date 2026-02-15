@@ -1,3 +1,4 @@
+// src/controllers/areaController.js
 const { db } = require('../config/firebase');
 const { createAreaSchema, updateAreaSchema } = require('../models/areaModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
@@ -17,6 +18,11 @@ const createArea = async (req, res) => {
       totalFloors: value.totalFloors,
       totalSlots: 0,     
       availableSlots: 0,
+      
+      isActive: value.isActive !== undefined ? value.isActive : true, 
+      contactEmail: value.contactEmail,
+      createdBySuperAdmin: req.user.userId,
+
       createdAt: new Date().toISOString()
     };
 
@@ -104,6 +110,11 @@ const deleteArea = async (req, res) => {
 const updateArea = async (req, res) => {
   try {
     const { id } = req.params;
+    const { managedAreaId } = req.user;
+
+    if (managedAreaId && id !== managedAreaId) {
+        return sendError(res, 403, 'Akses ditolak. Anda hanya boleh mengedit informasi area Anda sendiri.');
+    }
 
     const { error, value } = updateAreaSchema.validate(req.body);
     if (error) {

@@ -2,38 +2,32 @@ const express = require('express');
 const router = express.Router();
 const areaController = require('../controllers/areaController');
 const slotController = require('../controllers/slotController');
-const { verifyToken, verifyAdmin } = require('../middlewares/authMiddleware');
+const { verifyToken, verifyAdmin, verifySuperAdmin } = require('../middlewares/authMiddleware');
 
-// menambah area
-router.post('/', verifyToken, verifyAdmin, areaController.createArea);
+// super admin membuat area
+router.post('/', verifyToken, verifySuperAdmin, areaController.createArea);
 
-// mengambil area
+// semua user bisa melihat
 router.get('/', areaController.getAllAreas);
-
-// mengambil area dengan id
 router.get('/:id', areaController.getAreaById);
 
-// update area
+// updaet area admin dan user admin
 router.put('/:id', verifyToken, verifyAdmin, areaController.updateArea);
 
-// hapus area
-router.delete('/:id', verifyToken, verifyAdmin, areaController.deleteArea);
+// hapus area super admin
+router.delete('/:id', verifyToken, verifySuperAdmin, areaController.deleteArea);
 
-
-
-// menambah slot
+// membuat slot baru
 router.post('/slots', verifyToken, verifyAdmin, slotController.addSlot);
 
-// mengambil slot
+// melihat sllot 
 router.get('/:id/slots', slotController.getSlotsByArea);
-
-// mengambil slot dengan id
 router.get('/slots/:id', slotController.getSlotById);
 
-// update slot 
+// update slot
 router.put('/slots/:id', verifyToken, verifyAdmin, slotController.updateSlot);
 
-// hapus slot
+// delete slot
 router.delete('/slots/:id', verifyToken, verifyAdmin, slotController.deleteSlot);
 
 module.exports = router;
