@@ -33,6 +33,8 @@ const userSchema = Joi.object({
   password: commonRules.passwordBasic,
   phoneNumber: commonRules.phoneNumber,
   role: Joi.string().valid('user', 'admin').default('user'),
+  managedAreaId: Joi.string().allow(null).default(null),
+  adminCreatedBy: Joi.string().allow(null).default(null), 
   createdAt: Joi.date().default(Date.now),
   fcmToken: Joi.string().allow(null, '').optional(),
   activeTicketId: Joi.string().allow(null).default(null),
@@ -47,7 +49,7 @@ const userSchema = Joi.object({
   ).default([])
 });
 
-// register
+// register (Logic User Biasa TIDAK BERUBAH)
 const registerSchema = Joi.object({
   email: commonRules.email, 
   password: commonRules.passwordStrict,

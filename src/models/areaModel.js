@@ -16,7 +16,16 @@ const createAreaSchema = Joi.object({
     'number.base': 'Jumlah lantai harus berupa angka.',
     'number.min': 'Minimal harus ada 1 lantai.',
     'any.required': 'Jumlah lantai wajib diisi.'
+  }),
+  
+  isActive: Joi.boolean().default(true).messages({
+    'boolean.base': 'Status aktif harus berupa boolean (true/false).'
+  }),
+  contactEmail: Joi.string().email().required().messages({
+    'string.email': 'Format email kontak area tidak valid.',
+    'any.required': 'Email kontak area wajib diisi.'
   })
+
 }).options({ 
   abortEarly: false, 
   errors: { wrap: { label: false } }
@@ -33,7 +42,15 @@ const updateAreaSchema = Joi.object({
   totalFloors: Joi.number().integer().min(1).optional().messages({
     'number.base': 'Jumlah lantai harus berupa angka.',
     'number.min': 'Minimal harus ada 1 lantai.'
+  }),
+
+  isActive: Joi.boolean().optional().messages({
+    'boolean.base': 'Status aktif harus berupa boolean.'
+  }),
+  contactEmail: Joi.string().email().optional().messages({
+    'string.email': 'Format email kontak area tidak valid.'
   })
+
 }).options({ 
   abortEarly: false, 
   errors: { wrap: { label: false } } 
