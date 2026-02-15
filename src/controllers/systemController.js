@@ -1,4 +1,3 @@
-// src/controllers/systemController.js
 const { bucket } = require('../config/firebase');
 const { sendError, sendServerError } = require('../utils/responseHelper');
 

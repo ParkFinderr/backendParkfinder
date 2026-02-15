@@ -1,11 +1,9 @@
-// src/controllers/slotController.js
-const admin = require('firebase-admin'); // Butuh ini untuk FieldValue
+const admin = require('firebase-admin'); 
 const { db } = require('../config/firebase');
 const { createSlotSchema, updateSlotSchema } = require('../models/slotModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');
 const { redisClient } = require('../config/redis');
 
-// Helper: Cek Kepemilikan Area (Multi-Tenant)
 const checkAreaAccess = (user, targetAreaId) => {
   if (!user.managedAreaId) return true;
   if (user.managedAreaId === targetAreaId) return true;

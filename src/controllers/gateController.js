@@ -1,4 +1,3 @@
-// src/controllers/gateController.js
 const { db } = require('../config/firebase');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');

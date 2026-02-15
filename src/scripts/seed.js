@@ -1,48 +1,183 @@
 // src/scripts/seed.js
-process.env.FIRESTORE_EMULATOR_HOST = 'localhost:8080'; 
-process.env.GCLOUD_PROJECT = 'demo-parkfinder';
-
-const { db }  = require('../config/firebase');
+require('dotenv').config(); 
+const { db } = require('../config/firebase'); 
 const bcrypt = require('bcryptjs');
-const { validateUser } = require('../models/userModel');
 
-async function seedAdmin() {
-  console.log('🌱 Memulai Seeding: Create ADMIN Account...');
+
+const PASSWORD_DEFAULT = '123456';
+
+async function cleanCollection(collectionName) {
+  const snapshot = await db.collection(collectionName).listDocuments();
+  if (snapshot.length === 0) return;
+  
+  const batch = db.batch();
+  snapshot.forEach((doc) => batch.delete(doc));
+  await batch.commit();
+  console.log(`🧹 Koleksi '${collectionName}' dibersihkan.`);
+}
+
+async function seedDatabase() {
+  console.log('🌱 --- MEMULAI SEEDING DATABASE MULTI-TENANT ---');
 
   try {
-    // 1. Hash Password Admin
+
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash('admin123', salt);
+    const hashedPassword = await bcrypt.hash(PASSWORD_DEFAULT, salt);
 
-    // 2. Buat ID & Data Admin
-    const adminRef = db.collection('users').doc();
-    const adminId = adminRef.id;
-
-    const adminData = {
-      userId: adminId, // SESUAI REQUEST: userId
-      email: 'admin@parkfinder.id',
+    const superAdminRef = db.collection('users').doc();
+    const superAdminId = superAdminRef.id;
+    
+    await superAdminRef.set({
+      userId: superAdminId,
+      email: 'super@parkfinder.id',
       name: 'Super Administrator',
       password: hashedPassword,
-      phoneNumber: '081199887766',
-      role: 'admin', // Role Admin
+      phoneNumber: '081200000000',
+      role: 'admin',
+      managedAreaId: null,
+      adminCreatedBy: null,
       createdAt: new Date(),
       fcmToken: null,
+      vehicles: []
+    });
+    console.log(`✅ Super Admin Created`);
+
+    const areaUnilaRef = db.collection('areas').doc();
+    const areaUnilaId = areaUnilaRef.id;
+    await areaUnilaRef.set({
+      name: 'Universitas Lampung (UNILA)',
+      address: 'Jl. Prof. Dr. Ir. Sumantri Brojonegoro No.1',
+      totalFloors: 1,
+      totalSlots: 2,     
+      availableSlots: 2,
+      isActive: true,
+      contactEmail: 'admin.unila@parkfinder.id',
+      createdBySuperAdmin: superAdminId,
+      createdAt: new Date().toISOString()
+    });
+
+    const areaIteraRef = db.collection('areas').doc();
+    const areaIteraId = areaIteraRef.id;
+    await areaIteraRef.set({
+      name: 'Institut Teknologi Sumatera (ITERA)',
+      address: 'Jl. Terusan Ryacudu, Way Huwi',
+      totalFloors: 2,
+      totalSlots: 2,     
+      availableSlots: 2,
+      isActive: true,
+      contactEmail: 'admin.itera@parkfinder.id',
+      createdBySuperAdmin: superAdminId,
+      createdAt: new Date().toISOString()
+    });
+    console.log(`✅ 2 Area Created (Unila & Itera)`);
+
+
+    await db.collection('users').add({
+      userId: db.collection('users').doc().id, 
+      email: 'admin.unila@parkfinder.id',
+      name: 'Admin Parkir UNILA',
+      password: hashedPassword,
+      phoneNumber: '081211111111',
+      role: 'admin',
+      managedAreaId: areaUnilaId, 
+      adminCreatedBy: superAdminId,
+      createdAt: new Date(),
+      vehicles: []
+    });
+
+
+    await db.collection('users').add({
+      userId: db.collection('users').doc().id,
+      email: 'admin.itera@parkfinder.id',
+      name: 'Admin Parkir ITERA',
+      password: hashedPassword,
+      phoneNumber: '081222222222',
+      role: 'admin',
+      managedAreaId: areaIteraId, 
+      adminCreatedBy: superAdminId,
+      createdAt: new Date(),
+      vehicles: []
+    });
+    console.log(`✅ 2 Area Admins Created`);
+
+    await db.collection('users').add({
+      userId: db.collection('users').doc().id,
+      email: 'user@parkfinder.id',
+      name: 'Pengguna Aplikasi',
+      password: hashedPassword,
+      phoneNumber: '081233333333',
+      role: 'user',
+      managedAreaId: null,
       activeTicketId: null,
-      vehicles: [] // Admin mungkin tidak input kendaraan
-    };
+      defaultLicensePlate: 'BE 1234 XY',
+      vehicles: [{ plateNumber: 'BE 1234 XY', vehicleType: 'mobil' }],
+      createdAt: new Date()
+    });
+    console.log(`✅ User Biasa Created`);
 
-    // 3. Validasi
-    const { error } = validateUser(adminData);
-    if (error) throw new Error(`Validasi Admin Gagal: ${error.message}`);
+    await db.collection('slots').add({
+      areaId: areaUnilaId,
+      slotName: 'A-01',
+      floor: 1,
+      sensorId: 'sensor-unila-01',
+      sensorStatus: 0,
+      appStatus: 'available',
+      currentReservationId: null,
+      lastUpdate: new Date().toISOString()
+    });
+ 
+    await db.collection('slots').add({
+        areaId: areaUnilaId,
+        slotName: 'A-02',
+        floor: 1,
+        sensorId: 'sensor-unila-02',
+        sensorStatus: 0,
+        appStatus: 'available',
+        currentReservationId: null,
+        lastUpdate: new Date().toISOString()
+      });
 
-    // 4. Simpan
-    await adminRef.set(adminData);
-    
-    console.log(`✅ Admin Berhasil Dibuat!`);
-    console.log(`   Email   : admin@parkfinder.id`);
-    console.log(`   Password: admin123`);
-    console.log(`   UserId  : ${adminId}`);
-    
+    await db.collection('slots').add({
+      areaId: areaIteraId,
+      slotName: 'B-01',
+      floor: 1,
+      sensorId: 'sensor-itera-01',
+      sensorStatus: 0,
+      appStatus: 'available',
+      currentReservationId: null,
+      lastUpdate: new Date().toISOString()
+    });
+
+     await db.collection('slots').add({
+        areaId: areaIteraId,
+        slotName: 'B-02',
+        floor: 1,
+        sensorId: 'sensor-itera-02',
+        sensorStatus: 0,
+        appStatus: 'available',
+        currentReservationId: null,
+        lastUpdate: new Date().toISOString()
+      });
+    console.log(`✅ Dummy Slots Created`);
+
+    console.log('\n==========================================');
+    console.log('EEDING SELESAI! SILAKAN LOGIN DENGAN:');
+    console.log('==========================================');
+    console.log('PASSWORD SEMUA AKUN: ' + PASSWORD_DEFAULT);
+    console.log('------------------------------------------');
+    console.log('1. SUPER ADMIN');
+    console.log('   Email: super@parkfinder.id');
+    console.log('------------------------------------------');
+    console.log('2. ADMIN UNILA (Area ID: ' + areaUnilaId + ')');
+    console.log('   Email: admin.unila@parkfinder.id');
+    console.log('------------------------------------------');
+    console.log('3. ADMIN ITERA (Area ID: ' + areaIteraId + ')');
+    console.log('   Email: admin.itera@parkfinder.id');
+    console.log('------------------------------------------');
+    console.log('4. USER USER');
+    console.log('   Email: user@parkfinder.id');
+    console.log('==========================================\n');
+
     process.exit(0);
 
   } catch (error) {
@@ -51,4 +186,4 @@ async function seedAdmin() {
   }
 }
 
-seedAdmin();
+seedDatabase();

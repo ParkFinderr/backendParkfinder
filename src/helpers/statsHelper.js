@@ -1,4 +1,3 @@
-// src/helpers/statsHelper.js
 const { db } = require('../config/firebase');
 const { redisClient } = require('../config/redis');
 

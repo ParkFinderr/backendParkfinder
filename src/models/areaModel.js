@@ -1,4 +1,3 @@
-// src/models/areaModel.js
 const Joi = require('joi');
 
 // skema area parkir

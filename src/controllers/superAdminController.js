@@ -1,4 +1,3 @@
-// src/controllers/superAdminController.js
 const { db } = require('../config/firebase');
 const bcrypt = require('bcryptjs');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');

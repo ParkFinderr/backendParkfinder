@@ -1,4 +1,3 @@
-// src/controllers/areaController.js
 const { db } = require('../config/firebase');
 const { createAreaSchema, updateAreaSchema } = require('../models/areaModel');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHelper');

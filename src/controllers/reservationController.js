@@ -1,4 +1,3 @@
-// src/controllers/reservationController.js
 const admin = require('firebase-admin');
 const { db } = require('../config/firebase');
 const { createReservationSchema, swapReservationSchema } = require('../models/reservationModel');

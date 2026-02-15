@@ -1,4 +1,3 @@
-// src/models/reservationModel.js
 const Joi = require('joi');
 
 // skema reservasi
