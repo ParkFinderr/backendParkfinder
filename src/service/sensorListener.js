@@ -14,18 +14,30 @@ const initSensorListener = async () => {
         await redisSubscriber.subscribe(CHANNELS.REDIS.SENSOR_PUB, async (message) => {
             try {
                 const data = JSON.parse(message);
-                let { slotName, value } = data;
+
+                let { slotName, value, areaId } = data;
             
                 if (!slotName || value === undefined) return;
+                
+                if (!areaId) {
+                    console.warn(`[SENSOR IGNORED] Data sensor tanpa Area ID: ${slotName}`);
+                    return;
+                }
+
                 slotName = slotName.trim();
                 const sensorValue = parseInt(value);
 
                 const slotQuery = await db.collection('slots')
+                    .where('areaId', '==', areaId)
                     .where('slotName', '==', slotName)
                     .limit(1)
                     .get();
 
-                if (slotQuery.empty) return;
+                if (slotQuery.empty) {
+                   
+                    return;
+                }
+
                 const slotDoc = slotQuery.docs[0];
                 const slotData = slotDoc.data();
                 const slotId = slotDoc.id;
@@ -43,20 +55,21 @@ const initSensorListener = async () => {
                 if (sensorValue === 1) {
                     
                     if (slotData.appStatus === 'available') {
-                        console.warn(`[ANOMALI] Parkir Liar di ${slotName}`);
+                        console.warn(`[ANOMALI] Parkir Liar di ${slotName} (Area: ${areaId})`);
                         await slotDoc.ref.update({ appStatus: 'occupied' });
-                        await publishCommand(ACTIONS.ALERT, slotId, 'occupied', slotName, 'unauthorized');
+                       
+                        await publishCommand(ACTIONS.ALERT, slotId, 'occupied', slotName, 'unauthorized', areaId);
                     }
                     
                     else if (slotData.appStatus === 'booked') {
-                        console.warn(`[ANOMALI] Masuk Slot Booked ${slotName}`);
-                        await publishCommand(ACTIONS.ALERT, slotId, 'booked', slotName, 'intruder-warning');
+                        console.warn(`[ANOMALI] Masuk Slot Booked ${slotName} (Area: ${areaId})`);
+                        await publishCommand(ACTIONS.ALERT, slotId, 'booked', slotName, 'intruder-warning', areaId);
                     }
 
                     else if (slotData.appStatus === 'occupied') {
                          const diffSeconds = (now - lastUpdate) / 1000;
                          if (diffSeconds < 60) {
-                             console.warn(`[ANOMALI] Ghost Swap Terdeteksi di ${slotName} (${diffSeconds}s)`);
+                             console.warn(`[ANOMALI] Ghost Swap Terdeteksi di ${slotName}`);
                              
                              if (slotData.currentReservationId) {
                                  await db.collection('reservations').doc(slotData.currentReservationId).update({
@@ -67,14 +80,13 @@ const initSensorListener = async () => {
                              }
                              
                              await slotDoc.ref.update({ currentReservationId: null });
-                             await publishCommand(ACTIONS.ALERT, slotId, 'occupied', slotName, 'ghost-swap');
+                             await publishCommand(ACTIONS.ALERT, slotId, 'occupied', slotName, 'ghost-swap', areaId);
                          }
                     }
                 }
 
                 else if (sensorValue === 0) {
-                    console.log(`[INFO] Mobil keluar dari ${slotName}`);
-
+                    console.log(`[INFO] Mobil keluar dari ${slotName} (Area: ${areaId})`);
 
                     if (slotData.appStatus === 'occupied') {
                         
@@ -83,11 +95,11 @@ const initSensorListener = async () => {
                             
                             await slotDoc.ref.update({ appStatus: 'available' });
                             
-                            await publishCommand(ACTIONS.LEAVE, slotId, 'available', slotName, 'unauthorized-leave');
+                            await publishCommand(ACTIONS.LEAVE, slotId, 'available', slotName, 'unauthorized-leave', areaId);
                         }
                         
                         else {
-                            console.log(`[INFO] Menunggu konfirmasi checkout user atau auto checkout cron job untuk ${slotName}.`);
+                            console.log(`[INFO] Menunggu konfirmasi checkout user atau auto checkout.`);
                         }
                     }
                 }
