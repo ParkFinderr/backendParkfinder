@@ -1,30 +1,21 @@
-const { db } = require('../config/firebase');
 const { redisClient } = require('../config/redis');
+const CHANNELS = require('../constants/channels');
 
-const publishCommand = async (action, slotId, status, slotName = null, reason = null, expiryTime = null) => {
+const publishCommand = async (action, slotId, status, slotName, reason = '', areaId = null) => {
   try {
-    let name = slotName;
+    const payload = {
+      action,
+      slotId,
+      status,
+      slotName,
+      reason,
+      areaId: areaId 
+    };
+
+    await redisClient.publish(CHANNELS.REDIS.CMD, JSON.stringify(payload));
     
-    if (!name) {
-      const slotDoc = await db.collection('slots').doc(slotId).get();
-      if (slotDoc.exists) name = slotDoc.data().slotName;
-    }
-
-    if (name) {
-      const payload = {
-        action,
-        slotId,
-        slotName: name,
-        status,
-        reason,
-        expiryTime
-      };
-
-      await redisClient.publish('parkfinderCommands', JSON.stringify(payload));
-      console.log(`[CMD] ${action} -> ${name} (Status: ${status})`);
-    }
-  } catch (err) {
-    console.error('[COMMAND HELPER ERROR]', err);
+  } catch (error) {
+    console.error('[COMMAND HELPER ERROR]', error);
   }
 };
 
