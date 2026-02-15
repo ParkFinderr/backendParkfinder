@@ -10,7 +10,8 @@ const signToken = (user) => {
     { 
       userId: user.userId, 
       email: user.email, 
-      role: user.role 
+      role: user.role,
+      managedAreaId: user.managedAreaId || null
     },
     process.env.JWT_SECRET || 'rahasia_dev_123',
     { expiresIn: '1d' }
@@ -46,6 +47,11 @@ const register = async (req, res) => {
       password: hashedPassword,
       phoneNumber,
       role: 'user',
+      
+      managedAreaId: null, 
+      adminCreatedBy: null,
+    
+
       createdAt: new Date(),
       fcmToken: fcmToken || null,
       activeTicketId: null,
@@ -65,7 +71,8 @@ const register = async (req, res) => {
         userId: newUserId, 
         email, 
         name, 
-        role: 'user' 
+        role: 'user',
+        managedAreaId: null 
       }
     });
 
@@ -110,7 +117,8 @@ const login = async (req, res) => {
         userId: userData.userId, 
         email: userData.email, 
         name: userData.name, 
-        role: userData.role 
+        role: userData.role,
+        managedAreaId: userData.managedAreaId || null 
       }
     });
 

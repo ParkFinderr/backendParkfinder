@@ -1,4 +1,3 @@
-// src/middlewares/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const { sendError } = require('../utils/responseHelper');
 const { db }  = require('../config/firebase');
@@ -36,6 +35,9 @@ const verifyToken = async (req, res, next) => {
     }
 
     req.user = decoded;
+    req.user.managedAreaId = userData.managedAreaId || null; 
+
+
     next();
 
   } catch (error) {
@@ -47,7 +49,6 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-// admin
 const verifyAdmin = (req, res, next) => {
   if (!req.user || req.user.role !== 'admin') {
     return sendError(res, 403, 'Akses ditolak. Halaman ini khusus Admin.');
@@ -55,4 +56,12 @@ const verifyAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { verifyToken, verifyAdmin };
+
+const verifySuperAdmin = (req, res, next) => {
+  if (!req.user || req.user.role !== 'admin' || req.user.managedAreaId) {
+    return sendError(res, 403, 'Akses ditolak. Tindakan ini hanya untuk Super Admin.');
+  }
+  next();
+};
+
+module.exports = { verifyToken, verifyAdmin, verifySuperAdmin };
