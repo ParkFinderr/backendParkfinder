@@ -11,10 +11,9 @@ const systemRoutes = require('./routes/systemRoutes');
 const areaRoutes = require('./routes/areaAndSlotRoutes');
 const gateRoutes = require('./routes/gateRoutes')
 const reservationRoutes = require('./routes/reservationRoutes');
+const superAdminRoutes = require('./routes/SuperadminRoutes');
 const { startCronJobs } = require('./service/reservationTime');
 const { initSensorListener } = require('./service/sensorListener');
-
-
 
 const app = express();
 const PORT = process.env.PORT;
@@ -31,6 +30,7 @@ app.use('/system', systemRoutes);
 app.use('/areas', areaRoutes);
 app.use('/', gateRoutes);
 app.use('/', reservationRoutes);
+app.use('/superAdmin', superAdminRoutes);
 
 // Root Endpoint
 app.get('/', (req, res) => {
